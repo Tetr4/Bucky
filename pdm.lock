@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:ca98365ed40db5862ba23edc5f6d9ca69b98487124f3bbbe5c9ed2a060681d08"
+content_hash = "sha256:755010f7e84ec4c4907fadd0699cbcef439b4013933794796c83044e24aa00dd"
 
 [[metadata.targets]]
 requires_python = "==3.11.*"
@@ -1850,7 +1850,6 @@ files = [
 name = "piper-phonemize"
 version = "1.2.1"
 requires_python = ">=3.7"
-url = "https://files.pythonhosted.org/packages/97/82/d13e77080127fc0f7a89d5ca9640493c2efbf00ee766b724c14cb5624888/piper_phonemize_cross-1.2.1-cp311-cp311-macosx_11_0_arm64.whl"
 summary = "Phonemization library used by Piper text to speech system - includes wheels for MacOS & Linux"
 groups = ["default"]
 files = [
