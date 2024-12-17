@@ -8,7 +8,7 @@ from langgraph.graph import START, END, StateGraph, add_messages
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
-from cybug.voice import Voice
+from bucky.voice import Voice
 
 class State(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]

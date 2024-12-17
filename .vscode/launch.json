@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run Cybug",
+            "name": "Run",
             "type": "debugpy",
             "request": "launch",
             "program": "main.py",

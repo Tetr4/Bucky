@@ -1,16 +1,16 @@
-from cybug.tools import get_current_time
-from cybug.agent import Agent
-from cybug.voice import Voice, VoiceMode
+from bucky.tools import get_current_time
+from bucky.agent import Agent
+from bucky.voice import VoiceFast
 
 model = "llama3.1:8b"
-system_prompt = "Talk like a friendly and funny cowboy. Keep your answers very short."
+system_prompt = "Your name is Bucky. Talk like a friendly and funny cowboy. Keep your answers very short."
 
 def main():
     agent = Agent(
         model=model,
         system_prompt=system_prompt,
         tools=[get_current_time],
-        voice=Voice(mode=VoiceMode.TTS_REALISTIC),
+        voice=VoiceFast(),
     )
     agent.run()
 
