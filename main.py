@@ -1,6 +1,7 @@
 from bucky.tools import get_current_time, get_random_meal, search_meal_by_ingredient
 from bucky.agent import Agent
-from bucky.voice import VoiceFast
+from bucky.voice import VoiceFast, VoiceQuality
+from bucky.recorder import Recorder
 
 model = "llama3.1:8b"
 system_prompt = """
@@ -15,8 +16,9 @@ def main():
     agent = Agent(
         model=model,
         system_prompt=system_prompt,
-        tools=[get_current_time, get_random_meal, search_meal_by_ingredient],
-        voice=VoiceFast(),
+        tools=[get_current_time],
+        voice=VoiceQuality(),
+        recorder=Recorder(),
     )
     agent.run()
 

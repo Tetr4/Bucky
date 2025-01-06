@@ -8,18 +8,20 @@ from langgraph.graph import START, END, StateGraph, add_messages
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
+from bucky.recorder import Recorder
 from bucky.voice import Voice
 
 class State(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 class Agent:
-    def __init__(self, model: str, system_prompt: str, tools: list[BaseTool], voice: Voice) -> None:
+    def __init__(self, model: str, system_prompt: str, tools: list[BaseTool], voice: Voice, recorder: Recorder | None) -> None:
         self.system_prompt = [SystemMessage(system_prompt)]
         self.tools = tools
         self.voice = voice
         self.llm = ChatOllama(model=model).bind_tools(tools)
         self.graph = self._create_graph()
+        self.recorder = recorder
 
     def _create_graph(self) -> CompiledGraph:
         workflow = StateGraph(State)
@@ -37,7 +39,7 @@ class Agent:
 
     def run(self, thread_id: int = 1) -> None:
         while True:
-            user_input = input("You: ")
+            user_input = self.recorder.listen() if self.recorder else input("You: ")
             self._generate_answer(user_input, thread_id)
 
     def _generate_answer(self, user_input: str, thread_id: int) -> None:

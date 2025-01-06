@@ -6,6 +6,9 @@
 - Install [Ollama](https://ollama.com/) and pull model (see [main.py](main.py))
 - Install [PDM](https://pdm-project.org/en/latest/) (package manager)
 - Install dependencies and Python environment: `pdm install`
+- Install dependencies for voice recognition:
+    - `brew install portaudio`
+    - `brew install ffmpeg`
 - VSCode: Run `Python: Select Interpreter` and select the newly created environment
 
 # Commands
