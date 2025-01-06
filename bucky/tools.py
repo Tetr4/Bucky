@@ -1,3 +1,5 @@
+import base64
+import httpx
 import threading
 import requests
 import time
@@ -71,3 +73,9 @@ def emote(emotion: str) -> None:
         threading.Thread(target=emote_tired).start()
     else:
         raise ValueError("Invalid emotion. Only 'happy', 'angry', and 'tired' are allowed")
+
+@tool(parse_docstring=True)
+def take_image() -> str:
+    """Returns a description of you see."""
+    bytes = httpx.get(f"{bucky_uri}/cam/still?width=640&height=480").content
+    return base64.b64encode(bytes).decode("utf-8")
