@@ -91,9 +91,9 @@ class Agent:
         replaced_messages = state["messages"][:-3] + [vision_message]
         input: list[BaseMessage] = self.system_prompt + replaced_messages
         response: BaseMessage = self.vision_llm.invoke(input, config)
-        # We pass human_message instead of vision_message, which does not contain the image, so context for follow up message is smaller.
+        # Instead of vision_message we pass human_message, which does not contain the image, so context for follow up
+        # conversation is smaller. The model can just take another picture of required.
         return {"messages": replaced_messages + [human_message, response]}
-
 
     def _vision_condition(self, state: State) -> Literal["vision", "agent"]:
         if self.vision_llm is None:

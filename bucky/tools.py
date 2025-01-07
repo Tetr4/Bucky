@@ -63,7 +63,7 @@ def emote(emotion: str) -> None:
     """Use this to show an emotion on your face for a few seconds.
 
     Args:
-        emotion: The emotion to show. Only thes values are allowed: "happy", "angry", "tired". Parameters must be in english.
+        emotion: The emotion to show. Only these values are allowed: "happy", "angry", "tired". Parameters must be in english.
     """
     if emotion == "happy":
         threading.Thread(target=emote_happy).start()
@@ -76,6 +76,6 @@ def emote(emotion: str) -> None:
 
 @tool(parse_docstring=True)
 def take_image() -> str:
-    """Returns a description of you see."""
+    """Returns a description of what you see."""
     bytes = httpx.get(f"{bucky_uri}/cam/still?width=640&height=480").content
     return base64.b64encode(bytes).decode("utf-8")
