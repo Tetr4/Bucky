@@ -1,12 +1,15 @@
 import requests
 import sounddevice
 import logging
+import time
+import bucky.config as cfg
 
 logger = logging.getLogger(__name__)
 
 class HttpAudioSink(object):
-    def __init__(self, url):
+    def __init__(self, url: str, rate: int, channels: int):
         self.url = url
+        self.bytes_per_seconds = rate * channels * 2
         self.buffer = bytearray()
 
     def __enter__(self):
@@ -15,6 +18,8 @@ class HttpAudioSink(object):
     def __exit__(self, exc_type, exc_value, traceback):
         try:
             requests.post(self.url, data=self.buffer)
+            audio_duration = len(self.buffer) / self.bytes_per_seconds
+            time.sleep(audio_duration)
         except Exception as ex:
             logger.error(str(ex))
 
@@ -22,7 +27,7 @@ class HttpAudioSink(object):
         self.buffer += data.tobytes()
 
 def create_robot_audio_sink(rate: int, channels: int):
-    return HttpAudioSink(f"http://bucky.local:5000/speaker/play_sound?channels={channels}&rate={rate}&blocking=true")
+    return HttpAudioSink(f"{cfg.bucky_uri}/speaker/play_sound?rate={rate}&channels={channels}&blocking=false", rate, channels)
 
 def create_soundcard_audio_sink(rate: int, channels: int):
     return sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')

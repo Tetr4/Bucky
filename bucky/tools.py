@@ -6,9 +6,7 @@ import time
 from datetime import datetime
 from pytz import timezone
 from langchain_core.tools import tool
-
-bucky_uri="http://bucky.local:5000"
-meal_db_uri="https://www.themealdb.com"
+import bucky.config as cfg
 
 @tool(parse_docstring=True)
 def get_current_time(zone: str) -> str:
@@ -22,7 +20,7 @@ def get_current_time(zone: str) -> str:
 @tool(parse_docstring=True)
 def get_random_meal() -> str:
     """Returns a random meal as JSON from the meal database."""
-    response = requests.get(f"{meal_db_uri}/api/json/v1/1/random.php")
+    response = requests.get(f"{cfg.meal_db_uri}/api/json/v1/1/random.php")
     return response.json()
 
 @tool(parse_docstring=True)
@@ -32,31 +30,31 @@ def search_meal_by_ingredient(ingredient: str) -> str:
     Args:
         ingredient: An ingredient in the meal. Must be in snake_case.
     """
-    response = requests.get(f"{meal_db_uri}/api/json/v1/1/filter.php?i={ingredient}")
+    response = requests.get(f"{cfg.meal_db_uri}/api/json/v1/1/filter.php?i={ingredient}")
     return response.json()
 
 def emote_happy() -> None:
-    requests.get(f"{bucky_uri}/eyes/set_mood?mood=HAPPY")
-    requests.get(f"{bucky_uri}/eyes/set_colors?main=FFFFFF")
-    requests.get(f"{bucky_uri}/eyes/anim_laugh")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=HAPPY")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
+    requests.get(f"{cfg.bucky_uri}/eyes/anim_laugh")
     time.sleep(0.5)
-    requests.get(f"{bucky_uri}/eyes/set_colors?main=FFFFFF")
-    requests.get(f"{bucky_uri}/eyes/set_mood?mood=NEUTRAL")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
 
 def emote_angry() -> None:
-    requests.get(f"{bucky_uri}/eyes/set_mood?mood=ANGRY")
-    requests.get(f"{bucky_uri}/eyes/set_colors?main=FF0000")
-    requests.get(f"{bucky_uri}/eyes/anim_confused")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=ANGRY")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FF0000")
+    requests.get(f"{cfg.bucky_uri}/eyes/anim_confused")
     time.sleep(0.5)
-    requests.get(f"{bucky_uri}/eyes/set_colors?main=FFFFFF")
-    requests.get(f"{bucky_uri}/eyes/set_mood?mood=NEUTRAL")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
 
 def emote_tired() -> None:
-    requests.get(f"{bucky_uri}/eyes/set_mood?mood=TIRED")
-    requests.get(f"{bucky_uri}/eyes/set_colors?main=0000FF")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=TIRED")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=0000FF")
     time.sleep(1)
-    requests.get(f"{bucky_uri}/eyes/set_colors?main=FFFFFF")
-    requests.get(f"{bucky_uri}/eyes/set_mood?mood=NEUTRAL")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
 
 @tool(parse_docstring=True)
 def emote(emotion: str) -> None:
@@ -77,5 +75,5 @@ def emote(emotion: str) -> None:
 @tool(parse_docstring=True)
 def take_image() -> str:
     """Returns a description of what you see."""
-    bytes = httpx.get(f"{bucky_uri}/cam/still?width=640&height=480").content
+    bytes = httpx.get(f"{cfg.bucky_uri}/cam/still?width=640&height=480").content
     return base64.b64encode(bytes).decode("utf-8")
