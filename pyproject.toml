@@ -13,6 +13,7 @@ dependencies = [
     "SpeechRecognition>=3.12.0",
     "openai-whisper>=20240930",
     "pyaudio>=0.2.14",
+    "httpx>=0.27.2",
 ]
 requires-python = "==3.11.*"
 readme = "README.md"
