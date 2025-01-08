@@ -1,5 +1,8 @@
 import requests
 import sounddevice
+import logging
+
+logger = logging.getLogger(__name__)
 
 class HttpAudioSink(object):
     def __init__(self, url):
@@ -10,7 +13,10 @@ class HttpAudioSink(object):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        requests.post(self.url, data=self.buffer)
+        try:
+            requests.post(self.url, data=self.buffer)
+        except Exception as ex:
+            logger.error(str(ex))
 
     def write(self, data):
         self.buffer += data.tobytes()
