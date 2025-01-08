@@ -5,6 +5,8 @@ import sounddevice
 from TTS.api import TTS
 from piper.voice import PiperVoice
 from piper.download import get_voices, ensure_voice_exists
+from bucky.audio_sink import HttpAudioSink
+import bucky.config as cfg
 
 data_dir = "voice-data"
 
@@ -59,6 +61,11 @@ class VoiceQuality(Voice):
             wave_int16 = (np.array(wave) * 32767).astype(np.int16)
             stream.write(wave_int16)
 
+def robot_speaker(rate: int, channels: int):
+    return HttpAudioSink(f"{cfg.bucky_uri}/speaker/play_sound?rate={rate}&channels={channels}&blocking=false", rate, channels)
+
+def local_speaker(rate: int, channels: int):
+    return sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')
 
 if __name__ == "__main__":
     voice = VoiceFast()

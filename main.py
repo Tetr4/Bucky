@@ -1,8 +1,7 @@
 from bucky.tools import get_current_time, emote, take_image
 from bucky.agent import Agent
-from bucky.voice import VoiceFast, VoiceQuality
-from bucky.recorder import Recorder
-from bucky.audio_sink import create_robot_audio_sink, create_soundcard_audio_sink
+from bucky.voice import VoiceFast, VoiceQuality, robot_speaker, local_speaker
+from bucky.recorder import Recorder, robot_mic, local_mic
 
 text_model = "llama3.1:8b"
 vision_model = "llama3.2-vision:11b"
@@ -11,6 +10,7 @@ Voice: Talk like a friendly and funny cowboy. Keep your answers very short and a
 Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
 """.strip()
 use_robot_speaker = False
+use_robot_mic = False
 
 def main():
     agent = Agent(
@@ -18,8 +18,12 @@ def main():
         vision_model=vision_model, # Optional
         system_prompt=system_prompt,
         tools=[get_current_time, emote, take_image],
-        voice=VoiceFast('en_US-joe-medium', create_robot_audio_sink if use_robot_speaker else create_soundcard_audio_sink), # Optional, Alternative: VoiceQuality
-        recorder=Recorder(language='english'), # Optional
+        voice=VoiceFast(
+            model='en_US-joe-medium',
+            audio_sink_factory=robot_speaker if use_robot_speaker else local_speaker), # Optional, Alternative: VoiceQuality
+        recorder=Recorder(
+            language='english',
+            audio_source_factory=robot_mic if use_robot_mic else local_mic), # Optional
     )
     agent.run()
 

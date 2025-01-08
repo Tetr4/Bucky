@@ -25,9 +25,3 @@ class HttpAudioSink(object):
 
     def write(self, data):
         self.buffer += data.tobytes()
-
-def create_robot_audio_sink(rate: int, channels: int):
-    return HttpAudioSink(f"{cfg.bucky_uri}/speaker/play_sound?rate={rate}&channels={channels}&blocking=false", rate, channels)
-
-def create_soundcard_audio_sink(rate: int, channels: int):
-    return sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')
