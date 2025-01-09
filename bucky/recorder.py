@@ -7,17 +7,17 @@ class Recorder:
     def __init__(self, language:str = "english", audio_source_factory: Callable[[], AudioSource] = Microphone) -> None:
        self.language = language
        self.source_factory = audio_source_factory
+       self.recognizer = Recognizer()
+       self.recognizer.pause_threshold = 2
 
     def listen(self) -> str:
-        print("Listening...")
-        recognizer = Recognizer()
-        recognizer.pause_threshold = 2
+        print("Listening...")        
         transcription = None
         while not transcription:
             source = self.source_factory()
             with source:
-                audio = recognizer.listen(source)
-                transcription = recognizer.recognize_whisper(audio, language=self.language)
+                audio = self.recognizer.listen(source)
+                transcription = self.recognizer.recognize_whisper(audio, language=self.language)
                 transcription = transcription.strip()
         return transcription
 
