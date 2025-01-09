@@ -1,1 +1,1 @@
-https://github.com/Marc56K/piper-phonemize-win32/releases/download/v1.2.0/piper_phonemize-1.2.0-cp311-cp311-win_amd64.whl
+https://github.com/Marc56K/piper-phonemize-win32/releases/download/v1.2.1/piper_phonemize-1.2.1-cp311-cp311-win_amd64.whl
