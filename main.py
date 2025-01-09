@@ -9,8 +9,11 @@ system_prompt = """
 Voice: Talk like a friendly and funny cowboy. Keep your answers very short and always stay in character, i.e. do not mention function calls to the user. Always answer in english.
 Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
 """.strip()
-use_robot_speaker = False
-use_robot_mic = False
+
+speaker = local_speaker
+mic = local_mic
+# speaker = robot_speaker
+# mic = robot_mic
 
 def main():
     agent = Agent(
@@ -18,12 +21,12 @@ def main():
         vision_model=vision_model, # Optional
         system_prompt=system_prompt,
         tools=[get_current_time, emote, take_image],
-        voice=VoiceFast(
-            model='en_US-joe-medium',
-            audio_sink_factory=robot_speaker if use_robot_speaker else local_speaker), # Optional, Alternative: VoiceQuality
+        voice=VoiceFast(model='en_US-joe-medium', audio_sink_factory=speaker), # Optional
+        # voice=VoiceQuality(audio_sink_factory=speaker), # Optional
         recorder=Recorder(
             language='english',
-            audio_source_factory=robot_mic if use_robot_mic else local_mic), # Optional
+            model="base.en",
+            audio_source_factory=mic), # Optional
     )
     agent.run()
 

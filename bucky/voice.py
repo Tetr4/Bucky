@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 import numpy as np
 import sounddevice
+import torch
 from TTS.api import TTS
 from piper.voice import PiperVoice
 from piper.download import get_voices, ensure_voice_exists
@@ -49,7 +50,7 @@ class VoiceQuality(Voice):
                  language: str = "en",
                  audio_sink_factory = lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
-       self.tts = TTS(model_name=model, progress_bar=False)
+       self.tts = TTS(model_name=model, progress_bar=False, gpu=torch.cuda.is_available())
        self.language = language
        self.audio_sink_factory = audio_sink_factory
 
