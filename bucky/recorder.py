@@ -8,21 +8,21 @@ class Recorder:
        self.language = language
        self.source_factory = audio_source_factory
        self.recognizer = Recognizer()
-       self.recognizer.pause_threshold = 2
+       self.recognizer.pause_threshold = 3
 
     def listen(self) -> str:
-        print("Listening...")        
-        transcription = None
-        while not transcription:
-            source = self.source_factory()
-            with source:
+        print("Listening...")
+        source = self.source_factory()
+        with source:
+            while True:
                 audio = self.recognizer.listen(source)
                 transcription = self.recognizer.recognize_whisper(audio, language=self.language)
                 transcription = transcription.strip()
-        return transcription
+                if transcription:
+                    return transcription
 
 def robot_mic():
-    return HttpAudioSource(f"{cfg.bucky_uri}/mic")
+    return HttpAudioSource(f"{cfg.bucky_uri}/mic", chunk_size=1024)
 
 def local_mic():
     return Microphone()
