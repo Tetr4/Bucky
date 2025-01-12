@@ -24,19 +24,21 @@ class VoiceFast(Voice):
     Voices: https://rhasspy.github.io/piper-samples/
     '''
     def __init__(self, 
-                 model: str = "en_US-joe-medium", 
+                 model: str = "en_US-joe-medium",
+                 speaker_id: int | None = None,
                  audio_sink_factory = lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
         model_path = Path(data_dir, model + '.onnx')
         if not model_path.exists():
             voices_info = get_voices(data_dir, update_voices=True)
             ensure_voice_exists(model, data_dir, data_dir, voices_info)
+        self.speaker_id = speaker_id
         self.voice = PiperVoice.load(model_path)
         self.audio_sink_factory = audio_sink_factory
 
     def speak(self, message: str) -> None:
         stream = self.audio_sink_factory(self.voice.config.sample_rate, 1)
         with stream:
-            for audio_bytes in self.voice.synthesize_stream_raw(message):
+            for audio_bytes in self.voice.synthesize_stream_raw(message, speaker_id=self.speaker_id):
                 stream.write(np.frombuffer(audio_bytes, dtype=np.int16))
 
 

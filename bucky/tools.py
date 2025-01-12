@@ -9,13 +9,10 @@ from langchain_core.tools import tool
 import bucky.config as cfg
 
 @tool(parse_docstring=True)
-def get_current_time(zone: str) -> str:
-    """Returns the current time in the given locale as ISO 8601 string.
-
-    Args:
-        zone: The timezone, e.g. "US/Eastern"
+def get_current_time() -> str:
+    """Returns the current time as ISO 8601 string.
     """
-    return datetime.now().astimezone(timezone(zone)).isoformat()
+    return datetime.now().astimezone(timezone("Europe/Berlin")).isoformat()
 
 @tool(parse_docstring=True)
 def get_random_meal() -> str:
@@ -37,7 +34,7 @@ def emote_happy() -> None:
     requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=HAPPY")
     requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
     requests.get(f"{cfg.bucky_uri}/eyes/anim_laugh")
-    time.sleep(0.5)
+    time.sleep(2)
     requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
     requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
 
@@ -45,16 +42,27 @@ def emote_angry() -> None:
     requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=ANGRY")
     requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FF0000")
     requests.get(f"{cfg.bucky_uri}/eyes/anim_confused")
-    time.sleep(0.5)
+    time.sleep(2)
     requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
     requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
 
 def emote_tired() -> None:
     requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=TIRED")
     requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=0000FF")
-    time.sleep(1)
+    time.sleep(2)
     requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
     requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
+
+def emote_idle() -> None:
+    requests.get(f"{cfg.bucky_uri}/eyes/set_height?left=120&right=120")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_width?left=90&right=90")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_idlemode?on=true")
+
+def emote_attention() -> None:
+    requests.get(f"{cfg.bucky_uri}/eyes/set_height?left=150&right=150")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_widtht?left=95&right=95")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_idlemode?on=false")
+    requests.get(f"{cfg.bucky_uri}/eyes/set_position?position=CENTER")
 
 @tool(parse_docstring=True)
 def emote(emotion: str) -> None:
