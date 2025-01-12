@@ -12,23 +12,23 @@ Backstory: Your name is Bucky. You were born into a family of ranchers in rural 
 
 speaker = local_speaker
 mic = local_mic
-# speaker = robot_speaker
-# mic = robot_mic
+#speaker = robot_speaker
+#mic = robot_mic
 
 
 def main():
-    voice = VoiceFast(
-        model="de_DE-thorsten_emotional-medium",
-        speaker_id=7,  # {"amused": 0, "angry": 1, "disgusted": 2, "drunk": 3, "neutral": 4, "sleepy": 5, "surprised": 6, "whisper": 7}
-        audio_sink_factory=speaker,
-    )
+    # voice = VoiceFast(
+    #     model="de_DE-thorsten_emotional-medium",
+    #     speaker_id=7,  # {"amused": 0, "angry": 1, "disgusted": 2, "drunk": 3, "neutral": 4, "sleepy": 5, "surprised": 6, "whisper": 7}
+    #     audio_sink_factory=speaker,
+    # )
 
     # voice = VoiceFast(model='en_US-joe-medium', audio_sink_factory=speaker)
-    # voice = VoiceQuality(audio_sink_factory=speaker)
+    voice = VoiceQuality(audio_sink_factory=speaker, language="de")
 
     def on_wakeword_detected():
         emote_attention()
-        voice.speak("Ja, Bitte?")
+        voice.speak("Howdy Partner!", cache=True)
 
     agent = Agent(
         text_model=text_model,
