@@ -1,11 +1,12 @@
 import json
-from typing import cast, Literal
+from typing import cast, Literal, Annotated
 from typing_extensions import TypedDict
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import START, END, StateGraph
+from langgraph.graph.message import add_messages
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import tools_condition
 from langgraph.checkpoint.memory import MemorySaver
@@ -14,7 +15,7 @@ from bucky.tools import take_image
 from bucky.voice import Voice
 
 class State(TypedDict):
-    messages: list[BaseMessage]
+    messages: Annotated[list[BaseMessage], add_messages]
 
 class Agent:
     def __init__(
@@ -23,8 +24,8 @@ class Agent:
             vision_model: str | None,
             system_prompt: str,
             tools: list[BaseTool],
-            voice: Voice | None,
-            recorder: Recorder | None
+            voice: Voice | None = None,
+            recorder: Recorder | None = None
     ) -> None:
         self.system_prompt = [SystemMessage(system_prompt)]
         self.tools = tools
@@ -58,15 +59,25 @@ class Agent:
         tools_by_name = {tool.name: tool for tool in self.tools}
         outputs = []
         for tool_call in ai_message.tool_calls:
-            tool = tools_by_name[tool_call["name"]]
-            result = tool.invoke(tool_call["args"])
-            outputs.append(
-                ToolMessage(
-                    content=json.dumps(result),
-                    name=tool_call["name"],
-                    tool_call_id=tool_call["id"],
+            try:
+                tool = tools_by_name[tool_call["name"]]
+                result = tool.invoke(tool_call["args"])
+                outputs.append(
+                    ToolMessage(
+                        content=json.dumps(result),
+                        name=tool_call["name"],
+                        tool_call_id=tool_call["id"],
+                    )
                 )
-            )
+            except Exception as ex:
+                outputs.append(
+                    ToolMessage(
+                        status="error",
+                        content=f"ERROR: {ex}",
+                        name=tool_call["name"],
+                        tool_call_id=tool_call["id"],
+                    )
+                )
         return {"messages": state["messages"] + outputs}
 
     def _vision_node(self, state: State, config: RunnableConfig) -> State:

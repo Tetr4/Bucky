@@ -78,7 +78,7 @@ def emote(emotion: str) -> None:
     elif emotion == "tired":
         threading.Thread(target=emote_tired).start()
     else:
-        raise ValueError("Invalid emotion. Only 'happy', 'angry', and 'tired' are allowed")
+        raise ValueError(f"Invalid emotion. '{emotion}' Only 'happy', 'angry', and 'tired' are allowed")
 
 @tool(parse_docstring=True)
 def take_image() -> str:
