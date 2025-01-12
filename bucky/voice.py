@@ -67,7 +67,7 @@ class VoiceQuality(Voice):
         self.realtime_factor = 0.9 # faster machine -> smaller value
         for _ in range(3):
             for phrase in filler_phrases:
-                self.filler_sounds.append(self.text_to_speach(phrase, cache = True))
+                self.filler_sounds.append(self.text_to_speach(phrase))
 
     def text_to_speach(self, message: str, cache: bool = False) -> list:
         if message in self.cached_sounds:
