@@ -1,32 +1,37 @@
-from speech_recognition import Recognizer, Microphone, AudioSource, WaitTimeoutError
+from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
 from typing import Callable
 from bucky.audio_source import HttpAudioSource
+from pathlib import Path
 import bucky.config as cfg
 import whisper
 import time
-
+import wave
 
 class Recorder:
     def __init__(
         self,
         wakewords: list[str] | None = None,
+        wakeword_timeout: float | None = 10.0,
         language: str = "english",
         model: str = "base.en",
         audio_source_factory: Callable[[], AudioSource] = Microphone,
+        wav_output_dir: Path | None = None,
         on_start_listening: Callable = None,
         on_stop_listening: Callable = None,
         on_wakeword_detected: Callable = None,
     ) -> None:
         self.wakewords = wakewords
+        self.wakeword_timeout = wakeword_timeout
         self.language = language
-        self.source_factory = audio_source_factory
-        self.recognizer = Recognizer()
-        self.recognizer.pause_threshold = 2
-        self.recognizer.dynamic_energy_threshold = False
         self.model = model
+        self.source_factory = audio_source_factory
+        self.wav_output_dir = wav_output_dir
         self.on_start_listening = on_start_listening
         self.on_stop_listening = on_stop_listening
         self.on_wakeword_detected = on_wakeword_detected
+
+        self.recognizer = Recognizer()
+        self.recognizer.dynamic_energy_threshold = False
         self.first_listen = True
 
         # preload the model
@@ -40,8 +45,6 @@ class Recorder:
                     return True
             return False
 
-        listen_start = time.time()
-
         while True:
             if not self.first_listen:
                 print("Listening...")
@@ -49,22 +52,18 @@ class Recorder:
                 if self.on_start_listening:
                     self.on_start_listening()
 
+                self.recognizer.pause_threshold = 2
                 source = self.source_factory()
                 with source:
                     while True:
                         transcription = None
                         try:
-                            audio = self.recognizer.listen(source, timeout=5)
-                            transcription = self.recognizer.recognize_whisper(
-                                audio, model=self.model, language=self.language
-                            )
-                            transcription = transcription.strip()
+                            timeout = self.wakeword_timeout if self.wakewords else None
+                            if transcription := self.recognize(
+                                source, ignore_garbage=True, timeout=timeout
+                            ):
+                                return transcription
                         except WaitTimeoutError:
-                            print("WaitTimeoutError")
-
-                        if transcription:
-                            return transcription
-                        elif (time.time() - listen_start) > 5.0:
                             break
 
             if self.on_stop_listening:
@@ -74,22 +73,51 @@ class Recorder:
 
             if self.wakewords:
                 print("Waiting for Wakeword...")
+                self.recognizer.pause_threshold = 1.0
                 source = self.source_factory()
                 with source:
                     while True:
-                        audio = self.recognizer.listen(source)
-                        phrase = self.recognizer.recognize_whisper(
-                            audio, model=self.model, language=self.language
-                        )
+                        phrase = self.recognize(source)
                         if not phrase:
                             continue
-
-                        print("Phrase:", phrase)
                         if contains_any_wakeword(phrase):
                             break
 
                 if self.on_wakeword_detected:
                     self.on_wakeword_detected()
+
+    def recognize(self, source: AudioSource, ignore_garbage: bool = False, timeout: int | None = None) -> str:
+        audio = self.recognizer.listen(source, timeout=timeout)
+        result = self.recognizer.recognize_whisper(
+            audio, model=self.model, language=self.language, show_dict=True
+        )
+        if phrase := result["text"].strip():
+            ignored = False
+            if ignore_garbage:
+                no_speech_prob_threshold: float = 5e-11
+                no_speech_prob = result['segments'][0]["no_speech_prob"]
+                ignored = no_speech_prob > no_speech_prob_threshold
+                # print(phrase, f"({no_speech_prob=}, {ignored=})")
+            if not ignored:
+                self.write_to_wav_file(phrase, audio)
+                return phrase
+
+        return ""
+
+    def write_to_wav_file(self, transcript: str, data: AudioData):
+        if not self.wav_output_dir:
+            return
+
+        text = "".join(x for x in transcript if x.isalnum() or x in [' '])
+        filename = self.wav_output_dir / Path(f"{int(time.time())}_{text}.wav") 
+        try:
+            with wave.open(str(filename), 'w') as wav_file:
+                wav_file.setnchannels(1)  # Mono
+                wav_file.setsampwidth(data.sample_width)
+                wav_file.setframerate(data.sample_rate)
+                wav_file.writeframesraw(data.frame_data)
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
 
 def robot_mic():
