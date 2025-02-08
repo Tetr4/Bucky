@@ -3,12 +3,12 @@ from typing import cast, Literal, Annotated
 from typing_extensions import TypedDict
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
-from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage, ToolMessage, RemoveMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import START, END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.graph import CompiledGraph
-from langgraph.prebuilt import tools_condition
+from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from bucky.recorder import Recorder
 from bucky.voice import Voice
@@ -43,42 +43,17 @@ class Agent:
         workflow = StateGraph(State)
         workflow.add_edge(START, "agent")
         workflow.add_node("agent", self._chat_node)
-        workflow.add_node("tools", self._tool_node)
+        workflow.add_node("tools", ToolNode(tools=self.tools))
         workflow.add_node("vision", self._vision_node)
         workflow.add_conditional_edges("agent", tools_condition, ["tools", END])
         workflow.add_conditional_edges("tools", self._vision_condition, ["vision", "agent"])
+        workflow.add_edge("vision", END)
         return workflow.compile(checkpointer=MemorySaver())
 
     def _chat_node(self, state: State, config: RunnableConfig) -> State:
         input: list[BaseMessage] = self.system_prompt + state["messages"]
         response: BaseMessage = self.text_llm.invoke(input, config)
-        return {"messages": state["messages"] + [response]}
-
-    def _tool_node(self, state: State) -> State:
-        ai_message = cast(AIMessage, state["messages"][-1])
-        tools_by_name = {tool.name: tool for tool in self.tools}
-        outputs = []
-        for tool_call in ai_message.tool_calls:
-            try:
-                tool = tools_by_name[tool_call["name"]]
-                result = tool.invoke(tool_call["args"])
-                outputs.append(
-                    ToolMessage(
-                        content=json.dumps(result),
-                        name=tool_call["name"],
-                        tool_call_id=tool_call["id"],
-                    )
-                )
-            except Exception as ex:
-                outputs.append(
-                    ToolMessage(
-                        status="error",
-                        content=f"ERROR: {ex}",
-                        name=tool_call["name"],
-                        tool_call_id=tool_call["id"],
-                    )
-                )
-        return {"messages": state["messages"] + outputs}
+        return {"messages": [response]}
 
     def _vision_node(self, state: State, config: RunnableConfig) -> State:
         if self.vision_llm is None:
@@ -87,32 +62,40 @@ class Agent:
         # 1. human: "what do you see?"
         # 2. ai: "take_image" tool call
         # 3. tool: image as base64
+        #
         # We replace it, so it looks like this:
         # 1. human: "what do you see?" + base64 image
         # 2. ai: image description
         human_message = cast(HumanMessage, state["messages"][-3])
-        tool_response = cast(ToolMessage, state["messages"][-1])
-        image_base64 = json.loads(cast(str, tool_response.content))
-        vision_message = HumanMessage(
+        ai_message = cast(AIMessage, state["messages"][-2])
+        tool_message = cast(ToolMessage, state["messages"][-1])
+        image_base64 = cast(str, tool_message.content)
+        new_human_message = HumanMessage(
             content=[
                 { "type": "text", "text": human_message.content },
                 { "type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"} },
             ],
         )
-        replaced_messages = state["messages"][:-3] + [vision_message]
-        input: list[BaseMessage] = self.system_prompt + replaced_messages
-        response: BaseMessage = self.vision_llm.invoke(input, config)
-        # Instead of vision_message we pass human_message, which does not contain the image, so context for follow up
+        replaced_messages = state["messages"][:-3] + [new_human_message]
+        new_ai_message: BaseMessage = self.vision_llm.invoke(self.system_prompt + replaced_messages, config)
+        new_ai_message.id = ai_message.id # update old message
+        # We don't add the human message which containts the image, so context for follow up
         # conversation is smaller. The model can just take another picture of required.
-        return {"messages": replaced_messages + [human_message, response]}
+        return {
+            "messages":  [
+                new_ai_message,
+                RemoveMessage(id=tool_message.id if tool_message.id else ""),
+            ]
+        }
 
     def _vision_condition(self, state: State) -> Literal["vision", "agent"]:
         if self.vision_llm is None:
             return "agent"
-        tool_call_message = cast(AIMessage, state["messages"][-2])
-        last_tool_call = tool_call_message.tool_calls[-1]
-        if last_tool_call['name'] == TakeImageTool(None).name:
-            return "vision"
+        ai_message = state["messages"][-2]
+        if isinstance(ai_message, AIMessage) and ai_message.tool_calls:
+            last_tool_call = ai_message.tool_calls[-1]
+            if last_tool_call['name'] == "take_image":
+                return "vision"
         return "agent"
 
     def run(self, thread_id: int = 1) -> None:
