@@ -116,4 +116,6 @@ class BuckyBot(IRobot):
 
     def take_image(self, width=640, height=480) -> str:
         bytes = httpx.get(f"{self.url}/cam/still?width={width}&height={height}").content
+        # with open(f"{time.time()}.jpg", "wb") as file:
+        #    file.write(bytes)
         return base64.b64encode(bytes).decode("utf-8")

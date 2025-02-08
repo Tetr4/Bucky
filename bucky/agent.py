@@ -1,4 +1,3 @@
-import json
 from typing import cast, Literal, Annotated
 from typing_extensions import TypedDict
 from langchain_core.runnables import RunnableConfig
@@ -78,13 +77,13 @@ class Agent:
         )
         replaced_messages = state["messages"][:-3] + [new_human_message]
         new_ai_message: BaseMessage = self.vision_llm.invoke(self.system_prompt + replaced_messages, config)
-        new_ai_message.id = ai_message.id # update old message
         # We don't add the human message which containts the image, so context for follow up
         # conversation is smaller. The model can just take another picture of required.
         return {
             "messages":  [
-                new_ai_message,
+                RemoveMessage(id=ai_message.id if ai_message.id else ""),
                 RemoveMessage(id=tool_message.id if tool_message.id else ""),
+                new_ai_message,
             ]
         }
 
