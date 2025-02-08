@@ -57,11 +57,11 @@ class EmoteTool(BaseTool):
 class TakeImageTool(BaseTool):
     name: str = "take_image"
     description: str = "Returns a description of what you currently see with your eyes."
-    robot: IRobot = None
+    robot: IRobot | None = None
 
     def __init__(self, robot: IRobot):
         super().__init__()
         self.robot = robot
 
     def _run(self) -> str:
-        return self.robot.take_image(640, 480)
+        return self.robot.take_image(640, 480) if self.robot else ""

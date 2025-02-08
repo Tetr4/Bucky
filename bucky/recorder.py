@@ -11,7 +11,7 @@ class Recorder:
     def __init__(
         self,
         wakewords: list[str] | None = None,
-        wakeword_timeout: float | None = 10.0,
+        wakeword_timeout: float | None = 5.0,
         language: str = "english",
         model: str = "base.en",
         audio_source_factory: Callable[[], AudioSource] = Microphone,
