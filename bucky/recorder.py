@@ -32,7 +32,7 @@ class Recorder:
 
         self.recognizer = Recognizer()
         self.recognizer.dynamic_energy_threshold = False
-        self.first_listen = True
+        self.wait_for_wake_word = True
 
         # preload the model
         self.recognizer.whisper_model = {self.model: whisper.load_model(self.model)}
@@ -46,7 +46,7 @@ class Recorder:
             return False
 
         while True:
-            if not self.first_listen:
+            if not self.wait_for_wake_word:
                 print("Listening...")
 
                 if self.on_start_listening:
@@ -69,7 +69,7 @@ class Recorder:
             if self.on_stop_listening:
                 self.on_stop_listening()
 
-            self.first_listen = False
+            self.wait_for_wake_word = False
 
             if self.wakewords:
                 print("Waiting for Wakeword...")
@@ -93,11 +93,11 @@ class Recorder:
         )
         if phrase := result["text"].strip():
             ignored = False
+            no_speech_prob = result['segments'][0]["no_speech_prob"]
             if ignore_garbage:
                 no_speech_prob_threshold: float = 5e-11
-                no_speech_prob = result['segments'][0]["no_speech_prob"]
                 ignored = no_speech_prob > no_speech_prob_threshold
-                # print(phrase, f"({no_speech_prob=}, {ignored=})")
+            print("phrase:", phrase, f"({no_speech_prob=}, {ignored=})")
             if not ignored:
                 self.write_to_wav_file(phrase, audio)
                 return phrase

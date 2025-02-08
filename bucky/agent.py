@@ -11,8 +11,8 @@ from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import tools_condition
 from langgraph.checkpoint.memory import MemorySaver
 from bucky.recorder import Recorder
-from bucky.tools import take_image
 from bucky.voice import Voice
+from bucky.tools import TakeImageTool
 
 class State(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
@@ -111,7 +111,7 @@ class Agent:
             return "agent"
         tool_call_message = cast(AIMessage, state["messages"][-2])
         last_tool_call = tool_call_message.tool_calls[-1]
-        if last_tool_call['name'] == take_image.name:
+        if last_tool_call['name'] == TakeImageTool(None).name:
             return "vision"
         return "agent"
 

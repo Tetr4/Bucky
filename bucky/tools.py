@@ -1,12 +1,12 @@
-import base64
-import httpx
-import threading
+from typing import Type
+from pydantic import BaseModel, Field
 import requests
 import time
 from datetime import datetime
 from pytz import timezone
-from langchain_core.tools import tool
+from langchain_core.tools import tool, BaseTool
 import bucky.config as cfg
+from bucky.robot import IRobot
 
 @tool(parse_docstring=True)
 def get_current_time() -> str:
@@ -30,58 +30,38 @@ def search_meal_by_ingredient(ingredient: str) -> str:
     response = requests.get(f"{cfg.meal_db_uri}/api/json/v1/1/filter.php?i={ingredient}")
     return response.json()
 
-def emote_happy() -> None:
-    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=HAPPY")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
-    requests.get(f"{cfg.bucky_uri}/eyes/anim_laugh")
-    time.sleep(2)
-    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
+class EmoteToolInput(BaseModel):
+    emotion: str = Field(description='emotion: The emotion to show. Only these values are allowed: "happy", "angry", "tired". Parameters must be in english.')
 
-def emote_angry() -> None:
-    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=ANGRY")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FF0000")
-    requests.get(f"{cfg.bucky_uri}/eyes/anim_confused")
-    time.sleep(2)
-    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
+class EmoteTool(BaseTool):
+    name: str = "emote"
+    description: str = "Use this to show an emotion on your face for a few seconds."
+    args_schema: Type[BaseModel] = EmoteToolInput
+    robot: IRobot = None
 
-def emote_tired() -> None:
-    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=TIRED")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=0000FF")
-    time.sleep(2)
-    requests.get(f"{cfg.bucky_uri}/eyes/set_colors?main=FFFFFF")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_mood?mood=NEUTRAL")
+    def __init__(self, robot: IRobot):
+        super().__init__()
+        self.robot = robot
 
-def emote_idle() -> None:
-    requests.get(f"{cfg.bucky_uri}/eyes/set_height?left=120&right=120")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_width?left=90&right=90")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_idlemode?on=true")
+    def _run(self, emotion: str) -> str:
+        if emotion == "happy":
+            self.robot.emote_happy()
+        elif emotion == "angry":
+            self.robot.emote_angry()
+        elif emotion == "tired":
+            self.robot.emote_tired()
+        else:
+            raise ValueError(f"Invalid emotion. '{emotion}' Only 'happy', 'angry', and 'tired' are allowed")
+        return ""
 
-def emote_attention() -> None:
-    requests.get(f"{cfg.bucky_uri}/eyes/set_height?left=150&right=150")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_widtht?left=95&right=95")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_idlemode?on=false")
-    requests.get(f"{cfg.bucky_uri}/eyes/set_position?position=CENTER")
+class TakeImageTool(BaseTool):
+    name: str = "take_image"
+    description: str = "Returns a description of what you currently see with your eyes."
+    robot: IRobot = None
 
-@tool(parse_docstring=True)
-def emote(emotion: str) -> None:
-    """Use this to show an emotion on your face for a few seconds.
+    def __init__(self, robot: IRobot):
+        super().__init__()
+        self.robot = robot
 
-    Args:
-        emotion: The emotion to show. Only these values are allowed: "happy", "angry", "tired". Parameters must be in english.
-    """
-    if emotion == "happy":
-        threading.Thread(target=emote_happy).start()
-    elif emotion == "angry":
-        threading.Thread(target=emote_angry).start()
-    elif emotion == "tired":
-        threading.Thread(target=emote_tired).start()
-    else:
-        raise ValueError(f"Invalid emotion. '{emotion}' Only 'happy', 'angry', and 'tired' are allowed")
-
-@tool(parse_docstring=True)
-def take_image() -> str:
-    """Returns a description of what you see."""
-    bytes = httpx.get(f"{cfg.bucky_uri}/cam/still?width=640&height=480").content
-    return base64.b64encode(bytes).decode("utf-8")
+    def _run(self) -> str:
+        return self.robot.take_image(640, 480)
