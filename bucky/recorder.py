@@ -31,7 +31,7 @@ class Recorder:
         self.on_wakeword_detected = on_wakeword_detected
 
         self.recognizer = Recognizer()
-        self.recognizer.dynamic_energy_threshold = False
+        #self.recognizer.dynamic_energy_threshold = False
         self.wait_for_wake_word = True
 
         # preload the model
