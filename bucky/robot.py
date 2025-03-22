@@ -48,7 +48,8 @@ class FakeBot(IRobot):
         pass
 
     def take_image(self, width=640, height=480) -> str:
-        return "" # TODO take webcam image
+        with open("assets/images/horse.jpg", "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode("utf-8")
 
 class BuckyBot(IRobot):
     def __init__(self, url:str):
