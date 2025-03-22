@@ -6,11 +6,11 @@ def get_weather_forecast(location: str) -> dict:
     """Returns weather forecast for the given location.
 
     Args:
-        location: The location to get the weather from.
+        location: The location to get the weather from. Must be in english.
     """
     # Location name -> Lat and Long
     geocoding_result = requests.get(f"https://geocoding-api.open-meteo.com/v1/search?name={location}&count=1").json()
-    if not geocoding_result["results"] or not geocoding_result["results"][0]:
+    if not geocoding_result or not geocoding_result.get("results") or not geocoding_result["results"][0]:
         raise ValueError(f"Location '{location}' not found.")
     latitude = geocoding_result["results"][0]["latitude"]
     longitude = geocoding_result["results"][0]["longitude"]
