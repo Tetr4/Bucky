@@ -146,7 +146,7 @@ class VoiceQuality(Voice):
             while True:
                 wave = None
                 try:
-                    wave = wave_queue.get(timeout=1.0 if self.filler_sounds else None)
+                    wave = wave_queue.get(timeout=2.0 if self.filler_sounds else None)
                     if not wave:
                         break
                 except queue.Empty:
