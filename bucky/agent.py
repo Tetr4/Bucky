@@ -29,7 +29,7 @@ class Agent:
         self.tools = tools
         self.voice = voice
         self.text_llm = ChatOllama(model=text_model).bind_tools(tools)
-        self.vision_llm = ChatOllama(model=vision_model) if vision_model else None
+        self.vision_llm = ChatOllama(model=vision_model, base_url="http://192.168.0.97:11435") if vision_model else None
         self.graph = self._create_graph()
         self.recorder = recorder
 

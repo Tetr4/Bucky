@@ -86,6 +86,9 @@ class Recorder:
                 if self.on_wakeword_detected:
                     self.on_wakeword_detected()
 
+    def stop_listening(self):
+        self.wait_for_wake_word=True
+
     def recognize(self, source: AudioSource, ignore_garbage: bool = False, timeout: int | None = None) -> str:
         audio = self.recognizer.listen(source, timeout=timeout)
         result = self.recognizer.recognize_whisper(
