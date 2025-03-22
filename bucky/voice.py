@@ -13,7 +13,7 @@ from piper.download import get_voices, ensure_voice_exists
 from bucky.audio_sink import HttpAudioSink
 import bucky.config as cfg
 
-data_dir = "voice-data"
+data_dir = "assets/voice-data"
 
 class Voice(ABC):
 
