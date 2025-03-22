@@ -18,6 +18,10 @@ data_dir = "assets/voice-data"
 class Voice(ABC):
 
     @abstractmethod
+    def speek_random_filler_phrase(self) -> None:
+        pass
+
+    @abstractmethod
     def speak(self, message: str, cache: bool = False) -> None:
         pass
 
@@ -39,6 +43,9 @@ class VoiceFast(Voice):
         self.voice = PiperVoice.load(model_path)
         self.audio_sink_factory = audio_sink_factory
 
+    def speek_random_filler_phrase(self) -> None:
+        pass
+
     def speak(self, message: str, cache: bool = False) -> None:
         stream = self.audio_sink_factory(self.voice.config.sample_rate, 1)
         with stream:
@@ -56,6 +63,7 @@ class VoiceQuality(Voice):
                  language: str = "en",
                  voice_template: Path = Path(data_dir, "voice_template.wav"),
                  filler_phrases: list[str] = ["hm", "jo", "ähm", "also"],
+                 pre_cached_phrases: list[str] = [],
                  audio_sink_factory = lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
         self.tts = TTS(model_name=model, progress_bar=False, gpu=torch.cuda.is_available())
@@ -68,6 +76,8 @@ class VoiceQuality(Voice):
         for _ in range(3):
             for phrase in filler_phrases:
                 self.filler_sounds.append(self.text_to_speach(phrase))
+        for phrase in pre_cached_phrases:
+            self.text_to_speach(phrase, True)
 
     def text_to_speach(self, message: str, cache: bool = False) -> list:
         if message in self.cached_sounds:
@@ -123,13 +133,20 @@ class VoiceQuality(Voice):
 
         return text_sections
 
+    def speek_random_filler_phrase(self) -> None:
+        if self.filler_sounds:
+            wave = random.choice(self.filler_sounds)
+            stream = self.audio_sink_factory(22050, 1)
+            with stream:
+                stream.write((np.array(wave) * 32767).astype(np.int16))
+
     def speak(self, message: str, cache: bool = False) -> None:        
         wave_queue = queue.Queue()
         def play_sound_proc():
             while True:
                 wave = None
                 try:
-                    wave = wave_queue.get(timeout=3.0 if self.filler_sounds else None)
+                    wave = wave_queue.get(timeout=1.0 if self.filler_sounds else None)
                     if not wave:
                         break
                 except queue.Empty:
@@ -153,6 +170,7 @@ def robot_speaker(rate: int, channels: int):
 
 def local_speaker(rate: int, channels: int):
     return sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')
+
 
 if __name__ == "__main__":
     voice = VoiceFast()

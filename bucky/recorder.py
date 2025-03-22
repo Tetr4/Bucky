@@ -18,6 +18,7 @@ class Recorder:
         wav_output_dir: Path | None = None,
         on_start_listening: Callable = None,
         on_stop_listening: Callable = None,
+        on_waiting_for_wakewords: Callable = None,
         on_wakeword_detected: Callable = None,
     ) -> None:
         self.wakewords = wakewords
@@ -28,6 +29,7 @@ class Recorder:
         self.wav_output_dir = wav_output_dir
         self.on_start_listening = on_start_listening
         self.on_stop_listening = on_stop_listening
+        self.on_waiting_for_wakewords = on_waiting_for_wakewords
         self.on_wakeword_detected = on_wakeword_detected
 
         self.recognizer = Recognizer()
@@ -44,34 +46,35 @@ class Recorder:
                 if wakeword in p:
                     return True
             return False
-
+        
         while True:
             if not self.wait_for_wake_word:
                 print("Listening...")
-
                 if self.on_start_listening:
                     self.on_start_listening()
-
                 self.recognizer.pause_threshold = 2
                 source = self.source_factory()
                 with source:
+                    start = time.time()
                     while True:
                         transcription = None
                         try:
                             timeout = self.wakeword_timeout if self.wakewords else None
-                            if transcription := self.recognize(
-                                source, ignore_garbage=True, timeout=timeout
-                            ):
+                            if transcription := self.recognize(source, ignore_garbage=True, timeout=timeout):
+                                if self.on_stop_listening:
+                                    self.on_stop_listening()
                                 return transcription
+                            if timeout and (time.time() - start) > timeout:
+                                break
                         except WaitTimeoutError:
                             break
-
-            if self.on_stop_listening:
-                self.on_stop_listening()
 
             self.wait_for_wake_word = False
 
             if self.wakewords:
+                if self.on_waiting_for_wakewords:
+                    self.on_waiting_for_wakewords()
+
                 print("Waiting for Wakeword...")
                 self.recognizer.pause_threshold = 1.0
                 source = self.source_factory()

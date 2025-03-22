@@ -4,7 +4,6 @@ import threading
 import queue
 import requests
 import time
-from datetime import datetime
 from abc import ABC, abstractmethod
 
 class IRobot(ABC):
@@ -21,7 +20,7 @@ class IRobot(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def emote_idle(self) -> None:
+    def emote_sleeping(self, blocking=True) -> None:
         raise NotImplementedError()
 
     @abstractmethod
@@ -42,7 +41,7 @@ class FakeBot(IRobot):
     def emote_tired(self) -> None:
         print("😩")
 
-    def emote_idle(self) -> None:
+    def emote_sleeping(self, blocking=True) -> None:
         pass
 
     def emote_attention(self) -> None:
@@ -99,19 +98,24 @@ class BuckyBot(IRobot):
             requests.get(f"{self.url}/eyes/set_mood?mood=NEUTRAL")
         self.__run_async(func)
 
-    def emote_idle(self) -> None:
+    def emote_sleeping(self, blocking: bool = False) -> None:
         def func():
-            requests.get(f"{self.url}/eyes/set_height?left=120&right=120")
-            requests.get(f"{self.url}/eyes/set_width?left=90&right=90")
-            requests.get(f"{self.url}/eyes/set_idlemode?on=true")
-        self.__run_async(func)
+            requests.get(f"{self.url}/eyes/set_autoblinker?on=false")
+            requests.get(f"{self.url}/eyes/close?left=true&right=true")
+        if blocking:
+            func()
+        else:
+            self.__run_async(func)
 
     def emote_attention(self) -> None:
         def func():
+            requests.get(f"{self.url}/eyes/set_colors?main=FFFFFF")
             requests.get(f"{self.url}/eyes/set_height?left=150&right=150")
             requests.get(f"{self.url}/eyes/set_width?left=95&right=95")
             requests.get(f"{self.url}/eyes/set_idlemode?on=false")
             requests.get(f"{self.url}/eyes/set_position?position=CENTER")
+            requests.get(f"{self.url}/eyes/open?left=true&right=true")
+            requests.get(f"{self.url}/eyes/set_autoblinker?on=true")
         self.__run_async(func)
 
     def take_image(self, width=640, height=480) -> str:

@@ -31,5 +31,6 @@ class EndConversationTool(BaseTool):
         super().__init__()
         self.on_end_conversation = on_end_conversation
 
-    def _run(self) -> None:
+    def _run(self) -> str:
         self.on_end_conversation()
+        return "conversion ended, just say bye to the user"
