@@ -79,8 +79,9 @@ def main():
     
     try:
         agent.run()
-    except KeyboardInterrupt:
+    except Exception:
         robot.emote_sleeping(blocking=True)
+        raise
 
 
 if __name__ == "__main__":
