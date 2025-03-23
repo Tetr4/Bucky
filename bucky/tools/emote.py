@@ -18,11 +18,11 @@ class EmoteTool(BaseTool):
 
     def _run(self, emotion: str) -> str:
         if emotion == "happy":
-            self.robot.emote_happy()
+            self.robot.emote_happy(delay = 3.0)
         elif emotion == "angry":
-            self.robot.emote_angry()
+            self.robot.emote_angry(delay = 3.0)
         elif emotion == "tired":
-            self.robot.emote_tired()
+            self.robot.emote_tired(delay = 3.0)
         else:
             raise ValueError(f"Invalid emotion. '{emotion}' Only 'happy', 'angry', and 'tired' are allowed")
         return ""

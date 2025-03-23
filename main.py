@@ -4,9 +4,9 @@ from bucky.tools.utility import get_current_time, TakeImageTool, EndConversation
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
 from bucky.agent import Agent
-from bucky.voice import VoiceFast, VoiceQuality, robot_speaker, local_speaker
+from bucky.voice import Voice, VoiceFast, VoiceQuality, robot_speaker, local_speaker
 from bucky.recorder import Recorder, robot_mic, local_mic
-from bucky.robot import FakeBot, BuckyBot
+from bucky.robot import FakeBot, BuckyBot, IRobot
 from bucky.config import *
 
 text_model = "PetrosStav/gemma3-tools:4b" # "llama3.2-vision-tools:11b" # "llama3.1:8b"  # "llama3.2-vision-tools:11b"
@@ -17,8 +17,8 @@ Backstory: Your name is Bucky. You were born into a family of ranchers in rural 
 Important! Always answer in German!
 """.strip()
 
-robot = FakeBot()
-#robot = BuckyBot(bucky_uri)
+robot: IRobot = FakeBot()
+#robot: IRobot = BuckyBot(bucky_uri)
 
 speaker = local_speaker
 mic = local_mic
@@ -30,19 +30,24 @@ def main():
     fx_player = FxPlayer(speaker)
 
     # voice = VoiceFast(model='en_US-joe-medium', audio_sink_factory=speaker)
-    voice = VoiceQuality(audio_sink_factory=speaker, pre_cached_phrases=["Howdy Partner!"], language="de")
+    voice: Voice = VoiceQuality(audio_sink_factory=speaker, pre_cached_phrases=["Howdy Partner!"], language="de")
 
     def on_start_listening():
+        voice.set_filler_phrases_enabled(False)
+        robot.emote_attention()
         fx_player.play_rising_chime()
 
     def on_stop_listening():
-        voice.speek_random_filler_phrase()
+        voice.set_filler_phrases_enabled(True)
+        robot.emote_idle()
 
-    def on_waiting_for_wakewords(): 
+    def on_waiting_for_wakewords():
+        voice.set_filler_phrases_enabled(False)
         fx_player.play_descending_chime()       
-        robot.emote_sleeping()
+        robot.emote_doze(delay=1.0)
 
     def on_wakeword_detected():
+        voice.set_filler_phrases_enabled(False)
         robot.emote_attention()
         voice.speak("Howdy Partner!", cache=True)
 
@@ -79,9 +84,9 @@ def main():
     
     try:
         agent.run()
-    except Exception:
-        robot.emote_sleeping(blocking=True)
-        raise
+    finally:
+        robot.emote_doze()
+        robot.release()
 
 
 if __name__ == "__main__":

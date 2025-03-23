@@ -18,7 +18,7 @@ data_dir = "assets/voice-data"
 class Voice(ABC):
 
     @abstractmethod
-    def speek_random_filler_phrase(self) -> None:
+    def set_filler_phrases_enabled(self, enabled: bool) -> None:
         pass
 
     @abstractmethod
@@ -43,7 +43,7 @@ class VoiceFast(Voice):
         self.voice = PiperVoice.load(model_path)
         self.audio_sink_factory = audio_sink_factory
 
-    def speek_random_filler_phrase(self) -> None:
+    def set_filler_phrases_enabled(self, enabled: bool) -> None:
         pass
 
     def speak(self, message: str, cache: bool = False) -> None:
@@ -62,7 +62,7 @@ class VoiceQuality(Voice):
                  model: str = "tts_models/multilingual/multi-dataset/xtts_v2",
                  language: str = "en",
                  voice_template: Path = Path(data_dir, "voice_template.wav"),
-                 filler_phrases: list[str] = ["hm", "jo", "ähm", "also"],
+                 filler_phrases: list[tuple[str, float]] = [("hm", 2), ("jo", 2), ("ähm", 2), ("also", 2.5)],
                  pre_cached_phrases: list[str] = [],
                  audio_sink_factory = lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
@@ -70,16 +70,38 @@ class VoiceQuality(Voice):
         self.language = language
         self.voice_template = voice_template
         self.audio_sink_factory = audio_sink_factory
+
         self.cached_sounds = {}
+
+        self.filler_sounds_enabled = False
         self.filler_sounds = []
+
         self.realtime_factor = 0.9 # faster machine -> smaller value
         for _ in range(3):
-            for phrase in filler_phrases:
-                self.filler_sounds.append(self.text_to_speach(phrase))
-        for phrase in pre_cached_phrases:
-            self.text_to_speach(phrase, True)
+            for phrase, max_duration in filler_phrases:
+                waves = self.text_to_speech(phrase)
+                if self._get_audio_duration(waves) <= max_duration:
+                    self.filler_sounds.append(waves)
 
-    def text_to_speach(self, message: str, cache: bool = False) -> list:
+        for phrase in pre_cached_phrases:
+            self.text_to_speech(phrase, True)
+
+        self.wave_queue = queue.Queue()
+        def play_sound_proc():
+            while True:
+                try:
+                    wave = self.wave_queue.get(timeout=2.0 if self.filler_sounds else None)
+                    self._play_audio(wave)
+                    self.wave_queue.task_done()
+                except queue.Empty:
+                    if self.filler_sounds_enabled:
+                        wave = random.choice(self.filler_sounds)
+                        self._play_audio(wave)
+
+        self.player_thread = threading.Thread(target=play_sound_proc, daemon=True)
+        self.player_thread.start()
+
+    def text_to_speech(self, message: str, cache: bool = False) -> list:
         if message in self.cached_sounds:
             return self.cached_sounds[message]
 
@@ -96,7 +118,7 @@ class VoiceQuality(Voice):
             self.cached_sounds[message] = waves
 
         process_time = time.time() - start_time
-        audio_time = len(waves) / 22050
+        audio_time = self._get_audio_duration(waves)
         self.realtime_factor = 0.5 * self.realtime_factor + 0.5 * process_time / audio_time
 
         return waves
@@ -133,37 +155,21 @@ class VoiceQuality(Voice):
 
         return text_sections
 
-    def speek_random_filler_phrase(self) -> None:
-        if self.filler_sounds:
-            wave = random.choice(self.filler_sounds)
-            stream = self.audio_sink_factory(22050, 1)
-            with stream:
-                stream.write((np.array(wave) * 32767).astype(np.int16))
+    def set_filler_phrases_enabled(self, enabled: bool) -> None:
+        self.filler_sounds_enabled = enabled
 
-    def speak(self, message: str, cache: bool = False) -> None:        
-        wave_queue = queue.Queue()
-        def play_sound_proc():
-            while True:
-                wave = None
-                try:
-                    wave = wave_queue.get(timeout=2.0 if self.filler_sounds else None)
-                    if not wave:
-                        break
-                except queue.Empty:
-                    wave = random.choice(self.filler_sounds)
-
-                stream = self.audio_sink_factory(22050, 1)
-                with stream:                    
-                    stream.write((np.array(wave) * 32767).astype(np.int16))
-
-        player_thread = threading.Thread(target=play_sound_proc, daemon=True)
-        player_thread.start()
-
+    def speak(self, message: str, cache: bool = False) -> None:
         for text_section in self.split_into_text_sections(message):
-            wave_queue.put(self.text_to_speach(text_section, cache))
+            self.wave_queue.put(self.text_to_speech(text_section, cache))
+        self.wave_queue.join()
+    
+    def _play_audio(self, wave: list) -> None:    
+        stream = self.audio_sink_factory(22050, 1)
+        with stream:                    
+            stream.write((np.array(wave) * 32767).astype(np.int16))
 
-        wave_queue.put(None)
-        player_thread.join()
+    def _get_audio_duration(self, waves: list) -> float:
+        return len(waves) / 22050
 
 def robot_speaker(rate: int, channels: int):
     return HttpAudioSink(f"{cfg.bucky_uri}/speaker/play_sound?rate={rate}&channels={channels}&blocking=false", rate, channels)

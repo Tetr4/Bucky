@@ -8,23 +8,31 @@ from abc import ABC, abstractmethod
 
 class IRobot(ABC):
     @abstractmethod
-    def emote_happy(self) -> None:
+    def release(self) -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    def emote_angry(self) -> None:
+    def emote_happy(self, delay: float = 0.0) -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    def emote_tired(self) -> None:
+    def emote_angry(self, delay: float = 0.0) -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    def emote_sleeping(self, blocking=True) -> None:
+    def emote_tired(self, delay: float = 0.0) -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    def emote_attention(self) -> None:
+    def emote_doze(self, delay: float = 0.0) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def emote_idle(self, delay: float = 0.0) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def emote_attention(self, delay: float = 0.0) -> None:
         raise NotImplementedError()
 
     @abstractmethod
@@ -32,19 +40,25 @@ class IRobot(ABC):
         raise NotImplementedError()
 
 class FakeBot(IRobot):
-    def emote_happy(self) -> None:
-        print("😀")
-
-    def emote_angry(self) -> None:
-        print("😡")
-
-    def emote_tired(self) -> None:
-        print("😩")
-
-    def emote_sleeping(self, blocking=True) -> None:
+    def release(self) -> None:
         pass
 
-    def emote_attention(self) -> None:
+    def emote_happy(self, delay: float = 0.0) -> None:
+        print("😀")
+
+    def emote_angry(self, delay: float = 0.0) -> None:
+        print("😡")
+
+    def emote_tired(self, delay: float = 0.0) -> None:
+        print("😩")
+
+    def emote_doze(self, delay: float = 0.0) -> None:
+        pass
+
+    def emote_idle(self, delay: float = 0.0) -> None:
+        pass
+
+    def emote_attention(self, delay: float = 0.0) -> None:
         pass
 
     def take_image(self, width=640, height=480) -> str:
@@ -57,8 +71,7 @@ class BuckyBot(IRobot):
         self.job_queue = queue.Queue()
 
         def thread_proc():
-            while True:
-                func = self.job_queue.get()
+            while func := self.job_queue.get():                
                 try:
                     func()
                 except Exception as ex:
@@ -70,8 +83,14 @@ class BuckyBot(IRobot):
     def __run_async(self, func) -> None:
         self.job_queue.put(func)
 
-    def emote_happy(self) -> None:
+    def release(self) -> None:
+        if self.thread.is_alive():
+            self.job_queue.put(None)
+            self.thread.join(5.0)
+
+    def emote_happy(self, delay: float = 0.0) -> None:
         def func():
+            time.sleep(delay)
             requests.get(f"{self.url}/eyes/set_mood?mood=HAPPY")
             requests.get(f"{self.url}/eyes/set_colors?main=FFFFFF")
             requests.get(f"{self.url}/eyes/anim_laugh")
@@ -80,36 +99,53 @@ class BuckyBot(IRobot):
             requests.get(f"{self.url}/eyes/set_mood?mood=NEUTRAL")
         self.__run_async(func)
 
-    def emote_angry(self) -> None:
+    def emote_angry(self, delay: float = 0.0) -> None:
         def func():
+            time.sleep(delay)
             requests.get(f"{self.url}/eyes/set_mood?mood=ANGRY")
-            requests.get(f"{self.url}/eyes/set_colors?main=FF0000")
+            requests.get(f"{self.url}/eyes/set_colors?main=FF0F0F")
             requests.get(f"{self.url}/eyes/anim_confused")
             time.sleep(2)
             requests.get(f"{self.url}/eyes/set_colors?main=FFFFFF")
             requests.get(f"{self.url}/eyes/set_mood?mood=NEUTRAL")
         self.__run_async(func)
 
-    def emote_tired(self) -> None:
+    def emote_tired(self, delay: float = 0.0) -> None:
         def func():
+            time.sleep(delay)
             requests.get(f"{self.url}/eyes/set_mood?mood=TIRED")
-            requests.get(f"{self.url}/eyes/set_colors?main=0000FF")
+            requests.get(f"{self.url}/eyes/set_colors?main=AAAAAA")
             time.sleep(2)
             requests.get(f"{self.url}/eyes/set_colors?main=FFFFFF")
             requests.get(f"{self.url}/eyes/set_mood?mood=NEUTRAL")
         self.__run_async(func)
 
-    def emote_sleeping(self, blocking: bool = False) -> None:
+    def emote_doze(self, delay: float = 0.0) -> None:
         def func():
-            requests.get(f"{self.url}/eyes/set_autoblinker?on=false")
-            requests.get(f"{self.url}/eyes/close?left=true&right=true")
-        if blocking:
-            func()
-        else:
-            self.__run_async(func)
+            time.sleep(delay)
+            requests.get(f"{self.url}/eyes/set_colors?main=FFFFFF")
+            requests.get(f"{self.url}/eyes/set_height?left=80&right=80")
+            requests.get(f"{self.url}/eyes/open?left=true&right=true")
+            requests.get(f"{self.url}/eyes/set_idlemode?on=false")
+            requests.get(f"{self.url}/eyes/set_autoblinker?on=true&interval=10&variation=5")
+            time.sleep(2.0)
+            requests.get(f"{self.url}/eyes/set_position?position=CENTER")
+            requests.get(f"{self.url}/eyes/set_height?left=10&right=10")
+        self.__run_async(func)
 
-    def emote_attention(self) -> None:
+    def emote_idle(self, delay: float = 0.0) -> None:
         def func():
+            time.sleep(delay)
+            requests.get(f"{self.url}/eyes/set_colors?main=FFFFFF")
+            requests.get(f"{self.url}/eyes/set_height?left=120&right=120")
+            requests.get(f"{self.url}/eyes/set_width?left=90&right=90")
+            requests.get(f"{self.url}/eyes/open?left=true&right=true")
+            requests.get(f"{self.url}/eyes/set_idlemode?on=true")
+        self.__run_async(func)
+
+    def emote_attention(self, delay: float = 0.0) -> None:
+        def func():
+            time.sleep(delay)
             requests.get(f"{self.url}/eyes/set_colors?main=FFFFFF")
             requests.get(f"{self.url}/eyes/set_height?left=150&right=150")
             requests.get(f"{self.url}/eyes/set_width?left=95&right=95")
