@@ -135,7 +135,7 @@ class VoiceQuality(Voice):
                 # This can be accomplished by splitting the first sentence at the first comma.
                 # If no comma is found, the first sentence will be used as a whole.
                 comma_pos = txt.find(",")
-                if comma_pos < 1 or len(txt) < 32:
+                if comma_pos < 16 or len(txt) < 32:
                     text_sections.append(txt)
                 else:
                     text_sections.append(txt[:comma_pos])
