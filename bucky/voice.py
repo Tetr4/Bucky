@@ -62,7 +62,7 @@ class VoiceQuality(Voice):
                  model: str = "tts_models/multilingual/multi-dataset/xtts_v2",
                  language: str = "en",
                  voice_template: Path = Path(data_dir, "voice_template.wav"),
-                 filler_phrases: list[tuple[str, float]] = [("hm", 2), ("jo", 2), ("ähm", 2), ("also", 2.5)],
+                 filler_phrases: list[tuple[str, float]] = [("hm", 3), ("jo", 3), ("ähm", 3), ("also", 4)],
                  pre_cached_phrases: list[str] = [],
                  audio_sink_factory = lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
@@ -77,14 +77,28 @@ class VoiceQuality(Voice):
         self.filler_sounds = []
 
         self.realtime_factor = 0.9 # faster machine -> smaller value
+
+        # model warm-up
+        self.text_to_speech("The quick brown fox jumps over the lazy dog.")
+        
         for _ in range(3):
-            for phrase, max_duration in filler_phrases:
+            for phrase, max_duration in filler_phrases:            
                 waves = self.text_to_speech(phrase)
-                if self._get_audio_duration(waves) <= max_duration:
+                duration = self._get_audio_duration(waves)
+                if duration <= max_duration:
                     self.filler_sounds.append(waves)
+                else:
+                    print(f"skipping: '{phrase}' {duration=}")
+        random.shuffle(self.filler_sounds)
 
         for phrase in pre_cached_phrases:
-            self.text_to_speech(phrase, True)
+            shortest_wave: list = []
+            for _ in range(3):
+                if wave := self.text_to_speech(phrase):
+                    if not shortest_wave or len(shortest_wave) > len(wave):
+                        shortest_wave = wave
+            if shortest_wave:
+                self.cached_sounds[phrase] = shortest_wave            
 
         self.wave_queue = queue.Queue()
         def play_sound_proc():
@@ -97,8 +111,9 @@ class VoiceQuality(Voice):
                         self.wave_queue.task_done()
                 except queue.Empty:
                     if self.filler_sounds_enabled:
-                        wave = random.choice(self.filler_sounds)
-                        self._play_audio(wave)
+                         wave = self.filler_sounds.pop(0)
+                         self.filler_sounds.append(wave)
+                         self._play_audio(wave)
 
         self.player_thread = threading.Thread(target=play_sound_proc, daemon=True)
         self.player_thread.start()
@@ -126,7 +141,7 @@ class VoiceQuality(Voice):
         return waves
 
     def split_into_text_sections(self, message: str) -> list[str]:
-        sentences = self.tts.synthesizer.split_into_sentences(message)   
+        sentences = self.tts.synthesizer.split_into_sentences(message) # type: ignore
         text_sections = []
         max_character_limit: int = 253
         next_character_limit: int = 0
