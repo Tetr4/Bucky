@@ -91,8 +91,10 @@ class VoiceQuality(Voice):
             while True:
                 try:
                     wave = self.wave_queue.get(timeout=2.0 if self.filler_sounds else None)
-                    self._play_audio(wave)
-                    self.wave_queue.task_done()
+                    try:
+                        self._play_audio(wave)
+                    finally:
+                        self.wave_queue.task_done()
                 except queue.Empty:
                     if self.filler_sounds_enabled:
                         wave = random.choice(self.filler_sounds)
