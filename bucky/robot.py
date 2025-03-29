@@ -6,6 +6,7 @@ import requests
 import time
 from abc import ABC, abstractmethod
 
+
 class IRobot(ABC):
     @abstractmethod
     def release(self) -> None:
@@ -39,6 +40,7 @@ class IRobot(ABC):
     def take_image(self, width=640, height=480) -> str:
         raise NotImplementedError()
 
+
 class FakeBot(IRobot):
     def release(self) -> None:
         pass
@@ -63,10 +65,12 @@ class FakeBot(IRobot):
 
     def take_image(self, width=640, height=480) -> str:
         try:
-            import cv2        
+            import cv2
             cam = cv2.VideoCapture(0)
             try:
                 if cam.isOpened():
+                    cam.grab()
+                    time.sleep(1.0)  # wait a moment for stuff like autofocus
                     name = cam.getBackendName()
                     cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
                     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -80,24 +84,25 @@ class FakeBot(IRobot):
                         return base64.b64encode(jpeg_bytes).decode("utf-8")
                     print("{name}: Capturing camera image failed.")
                 else:
-                    print("No camera found.")    
+                    print("No camera found.")
             finally:
-                cam.release()       
+                cam.release()
         except ImportError as ex:
             print(str(ex))
-        
+
         default_img_path = "assets/images/horse.jpg"
         with open(default_img_path, "rb") as image_file:
             print(default_img_path)
             return base64.b64encode(image_file.read()).decode("utf-8")
 
+
 class BuckyBot(IRobot):
-    def __init__(self, url:str):
+    def __init__(self, url: str):
         self.url = url
         self.job_queue = queue.Queue()
 
         def thread_proc():
-            while func := self.job_queue.get():                
+            while func := self.job_queue.get():
                 try:
                     func()
                 except Exception as ex:

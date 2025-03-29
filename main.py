@@ -8,9 +8,10 @@ from bucky.voice import Voice, VoiceFast, VoiceQuality, robot_speaker, local_spe
 from bucky.recorder import Recorder, robot_mic, local_mic
 from bucky.robot import FakeBot, BuckyBot, IRobot
 from bucky.config import *
+from bucky.http_server import AgentStateHttpServer
 
-text_model = "PetrosStav/gemma3-tools:4b" # "llama3.2-vision-tools:11b" # "llama3.1:8b"  # "llama3.2-vision-tools:11b"
-vision_model = "PetrosStav/gemma3-tools:4b" # "llama3.2-vision-tools:11b" # "llama3.2-vision:11b"
+# "llama3.2-vision-tools:11b" # "llama3.1:8b"  # "llama3.2-vision-tools:11b"
+llm = "PetrosStav/gemma3-tools:12b"
 system_prompt = """
 Voice: Talk like a friendly and funny cowboy. Keep your answers very short and always stay in character, i.e. do not mention function calls to the user. Always answer in german.
 Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
@@ -18,18 +19,18 @@ Important! Always answer in German!
 """.strip()
 
 robot: IRobot = FakeBot()
-#robot: IRobot = BuckyBot(bucky_uri)
+# robot: IRobot = BuckyBot(bucky_uri)
 
 speaker = local_speaker
 mic = local_mic
-#speaker = robot_speaker
-#mic = robot_mic
+# speaker = robot_speaker
+# mic = robot_mic
 
 
 def main():
     fx_player = FxPlayer(speaker)
 
-    # voice = VoiceFast(model='en_US-joe-medium', audio_sink_factory=speaker)
+    # voice: Voice = VoiceFast(model='de_DE-thorsten-high', audio_sink_factory=speaker)
     voice: Voice = VoiceQuality(audio_sink_factory=speaker, pre_cached_phrases=["Howdy Partner!"], language="de")
 
     def on_start_listening():
@@ -43,14 +44,13 @@ def main():
 
     def on_waiting_for_wakewords():
         voice.set_filler_phrases_enabled(False)
-        fx_player.play_descending_chime()       
+        fx_player.play_descending_chime()
         robot.emote_doze(delay=1.0)
 
     def on_wakeword_detected():
         voice.set_filler_phrases_enabled(False)
         robot.emote_attention()
         voice.speak("Howdy Partner!", cache=True)
-
 
     recorder = Recorder(
         wakewords=["hey b", "hey p", "bucky", "pakki", "kumpel", "howdy"],
@@ -74,17 +74,21 @@ def main():
     ]
 
     agent = Agent(
-        text_model=text_model,
-        vision_model=vision_model,  # Optional
+        model=llm,
         system_prompt=system_prompt,
         tools=tools,
         voice=voice,  # Optional
         recorder=recorder  # Optional
     )
-    
+
+    http_server = AgentStateHttpServer()
+    agent.debug_state_callback = http_server.set_agent_state
+    http_server.start()
+
     try:
         agent.run()
     finally:
+        print("stopping...")
         robot.emote_doze()
         robot.release()
 
