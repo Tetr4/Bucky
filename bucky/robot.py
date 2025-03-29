@@ -62,7 +62,33 @@ class FakeBot(IRobot):
         pass
 
     def take_image(self, width=640, height=480) -> str:
-        with open("assets/images/horse.jpg", "rb") as image_file:
+        try:
+            import cv2        
+            cam = cv2.VideoCapture(0)
+            try:
+                if cam.isOpened():
+                    name = cam.getBackendName()
+                    cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                    ret, frame = cam.read()
+                    if ret:
+                        _, jpeg = cv2.imencode('.jpg', frame)
+                        jpeg_bytes = jpeg.tobytes()
+                        print(f"{name}: Captured camera image size {len(jpeg_bytes)} bytes.")
+                        # with open("assets/images/captured_image.jpg", "wb") as file:
+                        #     file.write(jpeg_bytes)
+                        return base64.b64encode(jpeg_bytes).decode("utf-8")
+                    print("{name}: Capturing camera image failed.")
+                else:
+                    print("No camera found.")    
+            finally:
+                cam.release()       
+        except ImportError as ex:
+            print(str(ex))
+        
+        default_img_path = "assets/images/horse.jpg"
+        with open(default_img_path, "rb") as image_file:
+            print(default_img_path)
             return base64.b64encode(image_file.read()).decode("utf-8")
 
 class BuckyBot(IRobot):
