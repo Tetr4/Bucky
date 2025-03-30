@@ -7,12 +7,13 @@ import threading
 import queue
 import random
 import time
-from bucky.gpu_utils import get_free_cuda_device
+from bucky.gpu_utils import get_cuda_devices, get_free_cuda_device
 from TTS.api import TTS
 from piper.voice import PiperVoice
 from piper.download import get_voices, ensure_voice_exists
 from bucky.audio_sink import HttpAudioSink
 import bucky.config as cfg
+from bucky.threading_utils import ThreadWorkerPool
 
 data_dir = "assets/voice-data"
 
@@ -66,15 +67,20 @@ class VoiceQuality(Voice):
                  model: str = "tts_models/multilingual/multi-dataset/xtts_v2",
                  language: str = "en",
                  voice_template: Path = Path(data_dir, "voice_template.wav"),
-                 filler_phrases: list[tuple[str, float]] = [("hm", 3), ("jo", 3), ("ähm", 3), ("also", 4)],
+                 filler_phrases: list[str] = ["hm", "jo", "ähm", "hm", "jo", "ähm", "ah", "also", "😀"],
                  pre_cached_phrases: list[str] = [],
                  audio_sink_factory=lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
-        self.tts = TTS(model_name=model, progress_bar=False)
+        self.tts_instances: list[TTS] = []
+        for cuda_device in get_cuda_devices():
+            print("TTS: creating GPU instance", cuda_device)
+            tts = TTS(model_name=model, progress_bar=False)
+            tts.to(cuda_device.torch_device, dtype=torch.float, non_blocking=True)
+            self.tts_instances.append(tts)
 
-        if cuda_device := get_free_cuda_device():
-            print("TTS: switching to CUDA", cuda_device)
-            self.tts.to(cuda_device.torch_device, dtype=torch.float, non_blocking=True)
+        if not self.tts_instances:
+            print("TTS: creating CPU instance")
+            self.tts_instances.append(TTS(model_name=model, progress_bar=False))
 
         self.language = language
         self.voice_template = voice_template
@@ -87,27 +93,19 @@ class VoiceQuality(Voice):
 
         self.realtime_factor = 0.9  # faster machine -> smaller value
 
+        self.lock = threading.RLock()
+        self.pool = ThreadWorkerPool(len(self.tts_instances))
+        self.pool.start()
+
         # model warm-up
-        self.text_to_speech("The quick brown fox jumps over the lazy dog.")
+        # self.text_to_speech("The quick brown fox jumps over the lazy dog.")
 
-        for _ in range(3):
-            for phrase, max_duration in filler_phrases:
-                waves = self.text_to_speech(phrase)
-                duration = self._get_audio_duration(waves)
-                if duration <= max_duration:
-                    self.filler_sounds.append(waves)
-                else:
-                    print(f"skipping: '{phrase}' {duration=}")
-        random.shuffle(self.filler_sounds)
+        if filler_phrases:
+            self.filler_sounds = self.multi_text_to_speech(filler_phrases, cache=False, retries=3)
+            random.shuffle(self.filler_sounds)
 
-        for phrase in pre_cached_phrases:
-            shortest_wave: list = []
-            for _ in range(3):
-                if wave := self.text_to_speech(phrase):
-                    if not shortest_wave or len(shortest_wave) > len(wave):
-                        shortest_wave = wave
-            if shortest_wave:
-                self.cached_sounds[phrase] = shortest_wave
+        if pre_cached_phrases:
+            self.multi_text_to_speech(pre_cached_phrases, cache=True, retries=3)
 
         self.wave_queue = queue.Queue()
 
@@ -126,30 +124,57 @@ class VoiceQuality(Voice):
         self.player_thread = threading.Thread(target=play_sound_proc, daemon=True)
         self.player_thread.start()
 
-    def text_to_speech(self, message: str, cache: bool = False) -> list:
-        if message in self.cached_sounds:
-            return self.cached_sounds[message]
+    def multi_text_to_speech(self, messages: list[str], cache: bool = False, retries: int = 1) -> list[list]:
+        waves: list[list] = []
+        self.pool.wait_completion()
+        for message in messages * retries:
+            self.pool.add_job((message, False), self.text_to_speech_proc, waves.append)
+        self.pool.wait_completion()
+
+        shortest_waves: list[list] = []
+        for i, wave in enumerate(waves):
+            idx = i % len(messages)
+            if idx >= len(shortest_waves):
+                shortest_waves.append(wave)
+            elif self._get_audio_duration(shortest_waves[idx]) > self._get_audio_duration(wave):
+                shortest_waves[idx] = wave
+
+        if cache:
+            with self.lock:
+                for i, shortest_wave in enumerate(shortest_waves):
+                    self.cached_sounds[messages[i]] = shortest_wave
+
+        return shortest_waves
+
+    def text_to_speech_proc(self, worker_index: int, args: tuple[str, bool]) -> list:
+        message, cache = args
+        return self.text_to_speech(self.tts_instances[worker_index], message, cache)
+
+    def text_to_speech(self, tts: TTS, message: str, cache: bool = False) -> list:
+        with self.lock:
+            if message in self.cached_sounds:
+                return self.cached_sounds[message]
 
         start_time = time.time()
-
-        waves = self.tts.tts(
+        waves = tts.tts(
             text=message,
             language=self.language,
             speaker_wav=str(self.voice_template),
             split_sentences=False,
         )
-
-        if cache:
-            self.cached_sounds[message] = waves
-
         process_time = time.time() - start_time
         audio_time = self._get_audio_duration(waves)
-        self.realtime_factor = 0.5 * self.realtime_factor + 0.5 * process_time / audio_time
+
+        with self.lock:
+            self.realtime_factor = 0.5 * self.realtime_factor + 0.5 * \
+                process_time / audio_time * 1 / len(self.tts_instances)
+            if cache:
+                self.cached_sounds[message] = waves
 
         return waves
 
-    def split_into_text_sections(self, message: str) -> list[str]:
-        sentences = self.tts.synthesizer.split_into_sentences(message)  # type: ignore
+    def split_into_text_sections(self, tts: TTS, message: str) -> list[str]:
+        sentences = tts.synthesizer.split_into_sentences(message)  # type: ignore
         text_sections = []
         max_character_limit: int = 253
         next_character_limit: int = 0
@@ -185,8 +210,10 @@ class VoiceQuality(Voice):
         self.filler_sounds_enabled = enabled
 
     def speak(self, message: str, cache: bool = False) -> None:
-        for text_section in self.split_into_text_sections(message):
-            self.wave_queue.put(self.text_to_speech(text_section, cache))
+        self.pool.wait_completion()
+        for text_section in self.split_into_text_sections(self.tts_instances[0], message):
+            self.pool.add_job((text_section, cache), self.text_to_speech_proc, self.wave_queue.put)
+        self.pool.wait_completion()
         self.wave_queue.join()
 
     def _play_audio(self, wave: list) -> None:
