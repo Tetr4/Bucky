@@ -53,7 +53,7 @@ def main():
         voice.speak("Howdy Partner!", cache=True)
 
     recorder = Recorder(
-        wakewords=["hey b", "hey p", "bucky", "pakki", "kumpel", "howdy"],
+        wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],
         language="german",
         model="turbo",
         audio_source_factory=mic,
