@@ -1,9 +1,8 @@
-from typing import Any, Callable, Literal, Optional, Union, Annotated
-from pydantic import BaseModel
+from typing import Callable, Literal, Optional, Annotated
 from typing_extensions import TypedDict
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
-from langchain_core.messages import AnyMessage, SystemMessage, BaseMessage, HumanMessage, AIMessage, RemoveMessage
+from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage, RemoveMessage
 from langchain_core.messages.base import get_msg_title_repr
 from langchain_ollama import ChatOllama
 from langgraph.graph import START, END, StateGraph
@@ -127,3 +126,7 @@ class Agent:
             message.pretty_print()
         else:
             print(get_msg_title_repr(message.type.title() + " Message"))
+
+
+def preload_ollama_model(model: str):
+    ChatOllama(model=model).invoke(".")

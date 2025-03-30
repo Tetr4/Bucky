@@ -1,5 +1,6 @@
 from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
 from typing import Callable, Optional
+from bucky.gpu_utils import get_free_cuda_device
 from bucky.audio_source import HttpAudioSource
 from pathlib import Path
 import bucky.config as cfg
@@ -38,8 +39,15 @@ class Recorder:
         # self.recognizer.dynamic_energy_threshold = False
         self.wait_for_wake_word = True
 
+        # try to use the GPU
+        torch_device = None
+        if cuda_device := get_free_cuda_device():
+            print("WHISPER: switching to CUDA", cuda_device)
+            torch_device = cuda_device.torch_device
+
         # preload the model
-        self.recognizer.whisper_model = {self.model: whisper.load_model(self.model)}
+        self.recognizer.whisper_model = {self.model: whisper.load_model(
+            self.model, device=torch_device, in_memory=True)}
 
     def listen(self) -> str:
         def contains_any_wakeword(phrase: str) -> bool:

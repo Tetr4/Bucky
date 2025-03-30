@@ -3,7 +3,7 @@ from bucky.tools.emote import EmoteTool
 from bucky.tools.utility import get_current_time, TakeImageTool, EndConversationTool
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
-from bucky.agent import Agent
+from bucky.agent import Agent, preload_ollama_model
 from bucky.voice import Voice, VoiceFast, VoiceQuality, robot_speaker, local_speaker
 from bucky.recorder import Recorder, robot_mic, local_mic
 from bucky.robot import FakeBot, BuckyBot, IRobot
@@ -28,6 +28,10 @@ mic = local_mic
 
 
 def main():
+    # Preloading the Ollama model before the voice and the recorder
+    # to increase the chances that the whole model fits into GPU memory.
+    preload_ollama_model(llm)
+
     fx_player = FxPlayer(speaker)
 
     # voice: Voice = VoiceFast(model='de_DE-thorsten-high', audio_sink_factory=speaker)

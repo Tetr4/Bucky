@@ -7,6 +7,7 @@ import threading
 import queue
 import random
 import time
+from bucky.gpu_utils import get_free_cuda_device
 from TTS.api import TTS
 from piper.voice import PiperVoice
 from piper.download import get_voices, ensure_voice_exists
@@ -14,6 +15,7 @@ from bucky.audio_sink import HttpAudioSink
 import bucky.config as cfg
 
 data_dir = "assets/voice-data"
+
 
 class Voice(ABC):
 
@@ -31,10 +33,11 @@ class VoiceFast(Voice):
     Generate low latency speech with piper-tts: https://github.com/rhasspy/piper
     Voices: https://rhasspy.github.io/piper-samples/
     '''
-    def __init__(self, 
+
+    def __init__(self,
                  model: str = "en_US-joe-medium",
                  speaker_id: int | None = None,
-                 audio_sink_factory = lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
+                 audio_sink_factory=lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
         model_path = Path(data_dir, model + '.onnx')
         if not model_path.exists():
             voices_info = get_voices(data_dir, update_voices=True)
@@ -58,15 +61,21 @@ class VoiceQuality(Voice):
     Generate high quality speech with TTS: https://github.com/coqui-ai/TTS
     Voices: pdm run tts --list_models
     '''
+
     def __init__(self,
                  model: str = "tts_models/multilingual/multi-dataset/xtts_v2",
                  language: str = "en",
                  voice_template: Path = Path(data_dir, "voice_template.wav"),
                  filler_phrases: list[tuple[str, float]] = [("hm", 3), ("jo", 3), ("ähm", 3), ("also", 4)],
                  pre_cached_phrases: list[str] = [],
-                 audio_sink_factory = lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
+                 audio_sink_factory=lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
-        self.tts = TTS(model_name=model, progress_bar=False, gpu=torch.cuda.is_available())
+        self.tts = TTS(model_name=model, progress_bar=False)
+
+        if cuda_device := get_free_cuda_device():
+            print("TTS: switching to CUDA", cuda_device)
+            self.tts.to(cuda_device.torch_device, dtype=torch.float, non_blocking=True)
+
         self.language = language
         self.voice_template = voice_template
         self.audio_sink_factory = audio_sink_factory
@@ -76,13 +85,13 @@ class VoiceQuality(Voice):
         self.filler_sounds_enabled = False
         self.filler_sounds = []
 
-        self.realtime_factor = 0.9 # faster machine -> smaller value
+        self.realtime_factor = 0.9  # faster machine -> smaller value
 
         # model warm-up
         self.text_to_speech("The quick brown fox jumps over the lazy dog.")
-        
+
         for _ in range(3):
-            for phrase, max_duration in filler_phrases:            
+            for phrase, max_duration in filler_phrases:
                 waves = self.text_to_speech(phrase)
                 duration = self._get_audio_duration(waves)
                 if duration <= max_duration:
@@ -98,9 +107,10 @@ class VoiceQuality(Voice):
                     if not shortest_wave or len(shortest_wave) > len(wave):
                         shortest_wave = wave
             if shortest_wave:
-                self.cached_sounds[phrase] = shortest_wave            
+                self.cached_sounds[phrase] = shortest_wave
 
         self.wave_queue = queue.Queue()
+
         def play_sound_proc():
             while True:
                 try:
@@ -110,10 +120,8 @@ class VoiceQuality(Voice):
                     finally:
                         self.wave_queue.task_done()
                 except queue.Empty:
-                    if self.filler_sounds_enabled:
-                         wave = self.filler_sounds.pop(0)
-                         self.filler_sounds.append(wave)
-                         self._play_audio(wave)
+                    if self.filler_sounds_enabled and self.filler_sounds:
+                        self._play_audio(random.choice(self.filler_sounds))
 
         self.player_thread = threading.Thread(target=play_sound_proc, daemon=True)
         self.player_thread.start()
@@ -141,7 +149,7 @@ class VoiceQuality(Voice):
         return waves
 
     def split_into_text_sections(self, message: str) -> list[str]:
-        sentences = self.tts.synthesizer.split_into_sentences(message) # type: ignore
+        sentences = self.tts.synthesizer.split_into_sentences(message)  # type: ignore
         text_sections = []
         max_character_limit: int = 253
         next_character_limit: int = 0
@@ -167,7 +175,8 @@ class VoiceQuality(Voice):
             # The character limit is gradually increased with each text section until it reaches the character limit of 253.
             if next_character_limit == 0:
                 next_character_limit = len(text_sections[-1])
-            next_character_limit += round(min(next_character_limit, len(text_sections[-1])) * (1.0 / self.realtime_factor - 1.0))
+            next_character_limit += round(min(next_character_limit,
+                                          len(text_sections[-1])) * (1.0 / self.realtime_factor - 1.0))
             next_character_limit = min(next_character_limit, max_character_limit)
 
         return text_sections
@@ -179,17 +188,19 @@ class VoiceQuality(Voice):
         for text_section in self.split_into_text_sections(message):
             self.wave_queue.put(self.text_to_speech(text_section, cache))
         self.wave_queue.join()
-    
-    def _play_audio(self, wave: list) -> None:    
+
+    def _play_audio(self, wave: list) -> None:
         stream = self.audio_sink_factory(22050, 1)
-        with stream:                    
+        with stream:
             stream.write((np.array(wave) * 32767).astype(np.int16))
 
     def _get_audio_duration(self, waves: list) -> float:
         return len(waves) / 22050
 
+
 def robot_speaker(rate: int, channels: int):
     return HttpAudioSink(f"{cfg.bucky_uri}/speaker/play_sound?rate={rate}&channels={channels}&blocking=false", rate, channels)
+
 
 def local_speaker(rate: int, channels: int):
     return sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')
