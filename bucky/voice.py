@@ -7,7 +7,7 @@ import threading
 import queue
 import random
 import time
-from bucky.gpu_utils import get_cuda_devices, get_free_cuda_device
+from bucky.gpu_utils import get_cuda_devices
 from TTS.api import TTS
 from piper.voice import PiperVoice
 from piper.download import get_voices, ensure_voice_exists
@@ -64,6 +64,7 @@ class VoiceQuality(Voice):
     '''
 
     def __init__(self,
+                 max_gpus: int = 2,
                  model: str = "tts_models/multilingual/multi-dataset/xtts_v2",
                  language: str = "en",
                  voice_template: Path = Path(data_dir, "voice_template.wav"),
@@ -73,6 +74,8 @@ class VoiceQuality(Voice):
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
         self.tts_instances: list[TTS] = []
         for cuda_device in get_cuda_devices():
+            if max_gpus == len(self.tts_instances):
+                break
             print("TTS: creating GPU instance", cuda_device)
             tts = TTS(model_name=model, progress_bar=False)
             tts.to(cuda_device.torch_device, dtype=torch.float, non_blocking=True)

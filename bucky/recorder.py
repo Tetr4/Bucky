@@ -40,10 +40,14 @@ class Recorder:
         self.wait_for_wake_word = True
 
         # try to use the GPU
-        torch_device = None
-        if cuda_device := get_free_cuda_device():
-            print("WHISPER: switching to CUDA", cuda_device)
+        torch_device = "cpu"
+
+        # get cuda device with 5GB free memory
+        if cuda_device := get_free_cuda_device(5 * (1024**3)): 
+            print("WHISPER: creating GPU instance", cuda_device)
             torch_device = cuda_device.torch_device
+        else:
+            print("WHISPER: creating CPU instance")
 
         # preload the model
         self.recognizer.whisper_model = {self.model: whisper.load_model(

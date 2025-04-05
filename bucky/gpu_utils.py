@@ -33,6 +33,6 @@ def get_cuda_devices() -> list[CudaDevice]:
     return [CudaDevice(i) for i in range(torch.cuda.device_count())]
 
 
-def get_free_cuda_device() -> Optional[CudaDevice]:
-    devs = sorted(get_cuda_devices(), key=lambda dev: dev.free_memory, reverse=True)
+def get_free_cuda_device(free_memory: int = 0) -> Optional[CudaDevice]:
+    devs = sorted((dev for dev in get_cuda_devices() if dev.free_memory >= free_memory), key=lambda dev: dev.free_memory, reverse=True)
     return next(iter(devs), None)
