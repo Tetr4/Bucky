@@ -10,6 +10,7 @@ from langgraph.graph.message import add_messages
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.memory import MemorySaver
+from bucky.memory_store import MemoryStore
 from bucky.message_utils import has_image_data
 from bucky.recorder import Recorder
 from bucky.voice import Voice
@@ -23,18 +24,27 @@ class Agent:
     def __init__(
             self,
             model: str,
-            system_prompt: str,
+            system_prompt_template: str,
+            memory_store: MemoryStore,
             tools: list[BaseTool],
             voice: Voice | None = None,
             recorder: Recorder | None = None
     ) -> None:
-        self.system_prompt = [SystemMessage(system_prompt)]
+        self.system_prompt_template = system_prompt_template
+        self.memory_store = memory_store
         self.tools = tools
         self.voice = voice
         self.llm = ChatOllama(model=model).bind_tools(tools)
         self.graph = self._create_graph()
         self.recorder = recorder
         self.debug_state_callback: Optional[Callable[[list[BaseMessage]], None]] = None
+
+    @property
+    def system_message(self) -> list[BaseMessage]:
+        memories = self.memory_store.dump()
+        system_prompt = self.system_prompt_template.format(memories=memories)
+        print(f"System prompt: {system_prompt}")
+        return [SystemMessage(content=system_prompt)]
 
     def _create_graph(self) -> CompiledGraph:
         """
@@ -57,7 +67,7 @@ class Agent:
         return workflow.compile(checkpointer=MemorySaver())
 
     def _chat_node(self, state: State, config: RunnableConfig) -> State:
-        input: list[BaseMessage] = self.system_prompt + state["messages"]
+        input: list[BaseMessage] = self.system_message + state["messages"]
         response: BaseMessage = self.llm.invoke(input, config)
         return {"messages": [response]}
 
@@ -68,7 +78,7 @@ class Agent:
             print("SUMMARIZATION")
             summarize_prompt: str = """Summarize the previous conversation and mention important facts such as the names of everyone you spoke to. 
             Answer in the same language as the conversation."""
-            input: list[BaseMessage] = self.system_prompt + messages + [HumanMessage(content=summarize_prompt)]
+            input: list[BaseMessage] = self.system_message + messages + [HumanMessage(content=summarize_prompt)]
             summarization: BaseMessage = self.llm.invoke(input, config)
             if summarization.text():
                 new_messages: list[BaseMessage] = [RemoveMessage(id=msg.id or "") for msg in messages]
@@ -88,7 +98,7 @@ class Agent:
         return {"messages": rm_messages}
 
     def _debug_node(self, state: State) -> State:
-        messages: list[BaseMessage] = state["messages"]
+        messages: list[BaseMessage] = self.system_message + state["messages"]
         if self.debug_state_callback:
             self.debug_state_callback(messages)
         return {"messages": []}
