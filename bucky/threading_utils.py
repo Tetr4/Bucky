@@ -41,6 +41,7 @@ class ThreadWorkerPool:
         while True:
             job_result = self.output_queue.get()
             if job_result is None:
+                self.output_queue.task_done()
                 break  # Stop the worker
 
             index, result, callback = job_result
@@ -54,6 +55,7 @@ class ThreadWorkerPool:
                     callback(result)
                 except Exception as ex:
                     print(str(ex))
+            self.output_queue.task_done()
 
     def start(self) -> None:
         """Start worker threads and callback handler."""
@@ -72,6 +74,7 @@ class ThreadWorkerPool:
     def wait_completion(self) -> None:
         """Wait for all jobs to be processed."""
         self.input_queue.join()
+        self.output_queue.join()
 
     def stop(self) -> None:
         """Stop the worker pool and allow graceful shutdown."""
