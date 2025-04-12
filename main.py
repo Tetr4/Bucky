@@ -1,7 +1,7 @@
 from bucky.fx_player import FxPlayer
 from bucky.memory_store import MemoryStore
 from bucky.tools.emote import EmoteTool
-from bucky.tools.memory import MemoryTool
+from bucky.tools.memory import CreateMemoryTool, UpdateMemoryTool, DeleteMemoryTool
 from bucky.tools.utility import get_current_time, TakeImageTool, EndConversationTool
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
@@ -19,8 +19,13 @@ Voice: Talk like a friendly and funny cowboy. Keep your answers very short and a
 Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
 Important! Always answer in German!
 
-Memories:
+Current time is: {current_time}
+Current location: Braunschweig in Germany
+
+This is your long term memory of facts:
 {memories}
+
+Use tools to remember new facts. This information will be gone otherwise!
 """.strip()
 
 robot: IRobot = FakeBot()
@@ -42,7 +47,7 @@ def main():
     # voice: Voice = VoiceFast(model='de_DE-thorsten-high', audio_sink_factory=speaker)
     voice: Voice = VoiceQuality(audio_sink_factory=speaker, pre_cached_phrases=["Howdy Partner!"], language="de")
 
-    memory_store = MemoryStore()
+    memory_store = MemoryStore("memory.db")
 
     def on_start_listening():
         voice.set_filler_phrases_enabled(False)
@@ -61,7 +66,7 @@ def main():
     def on_wakeword_detected():
         voice.set_filler_phrases_enabled(False)
         robot.emote_attention()
-        voice.speak("Howdy Partner!", cache=True)
+        voice.speak("Howdy Partner!")
 
     recorder = Recorder(
         wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],
@@ -75,14 +80,15 @@ def main():
     )
 
     tools = [
-        get_current_time,
         TakeImageTool(robot),
         EndConversationTool(recorder.stop_listening),
         EmoteTool(robot),
         get_weather_forecast,
         # get_random_meal,
         # search_meal_by_ingredient,
-        MemoryTool(memory_store),
+        CreateMemoryTool(memory_store),
+        UpdateMemoryTool(memory_store),
+        DeleteMemoryTool(memory_store),
     ]
 
     agent = Agent(

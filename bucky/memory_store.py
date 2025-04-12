@@ -1,24 +1,54 @@
-from typing import Any, Literal
-import uuid
-from langgraph.store.memory import InMemoryStore
-from langgraph.store.base import BaseStore
-from langchain.storage.file_system import LocalFileStore
+# from langgraph.store.memory import InMemoryStore
+import sqlite3
+
 
 class MemoryStore:
-    def __init__(self):
-        self.store = InMemoryStore() # TODO replace with LocalFileStore
-        self.namespace = ("global", "agent_memory")
+    def __init__(self, db_path=":memory:"):
+        self.db_path = db_path
+        self._initialize_db()
+
+    def _initialize_db(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS memory_store (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    value TEXT
+                )
+            """)
+            conn.commit()
 
     def add(self, memory: str):
-        key = str(uuid.uuid4())
-        value = {"memory": memory}
-        self.store.put(self.namespace, key, value)
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO memory_store (value)
+                VALUES (?)
+            """, (memory,))
+            conn.commit()
 
-    def delete(self, key: str):
-        self.store.delete(self.namespace, key)
+    def update(self, id: str, new_memory: str):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE memory_store
+                SET value = ?
+                WHERE id = ?
+            """, (new_memory, id))
+            conn.commit()
 
-    def update(self, key: str, memory: str):
-        self.store.put(self.namespace, key, {"memory": memory})
+    def delete(self, id: str):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                DELETE FROM memory_store
+                WHERE id = ?
+            """, (id,))
+            conn.commit()
 
-    def dump(self) -> list[dict[str, str]]:
-        return [{entry.key: entry.value['memory']}  for entry in self.store.search(self.namespace)]
+    def dump(self) -> dict[str, str]:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, value FROM memory_store")
+            rows = cursor.fetchall()
+            return {str(row[0]): row[1] for row in rows}

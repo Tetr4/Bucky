@@ -1,3 +1,5 @@
+from datetime import datetime
+from pytz import timezone
 from typing import Callable, Literal, Optional, Annotated
 from typing_extensions import TypedDict
 from langchain_core.runnables import RunnableConfig
@@ -42,8 +44,9 @@ class Agent:
     @property
     def system_message(self) -> list[BaseMessage]:
         memories = self.memory_store.dump()
-        system_prompt = self.system_prompt_template.format(memories=memories)
-        print(f"System prompt: {system_prompt}")
+        now = datetime.now().astimezone(timezone("Europe/Berlin")).isoformat()
+        system_prompt = self.system_prompt_template.format(memories=memories, current_time=now)
+        # print(f"System prompt: {system_prompt}")
         return [SystemMessage(content=system_prompt)]
 
     def _create_graph(self) -> CompiledGraph:
