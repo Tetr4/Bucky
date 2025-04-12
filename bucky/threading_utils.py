@@ -71,14 +71,14 @@ class ThreadWorkerPool:
         self.input_queue.put((self.next_input_index, job, process_job, callback))
         self.next_input_index += 1
 
-    def wait_completion(self) -> None:
+    def wait_for_completion(self) -> None:
         """Wait for all jobs to be processed."""
         self.input_queue.join()
         self.output_queue.join()
 
     def stop(self) -> None:
         """Stop the worker pool and allow graceful shutdown."""
-        self.wait_completion()
+        self.wait_for_completion()
         for _ in range(self.num_workers):
             self.input_queue.put(None)  # Unblock workers
         for worker in self.workers:

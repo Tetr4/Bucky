@@ -130,10 +130,10 @@ class VoiceQuality(Voice):
     def multi_text_to_speech(self, messages: list[str], cache: bool = False, retries: int = 1) -> list[list]:
         waves: list[list] = []
         already_cached: set[str] = set(msg for msg in messages if self._is_cached(msg))
-        self.pool.wait_completion()
+        self.pool.wait_for_completion()
         for message in messages * retries:
             self.pool.add_job((message, False), self.text_to_speech_proc, waves.append)
-        self.pool.wait_completion()
+        self.pool.wait_for_completion()
 
         shortest_waves: list[list] = []
         for i, wave in enumerate(waves):
@@ -215,10 +215,10 @@ class VoiceQuality(Voice):
         self.filler_sounds_enabled = enabled
 
     def speak(self, message: str) -> None:
-        self.pool.wait_completion()
+        self.pool.wait_for_completion()
         for text_section in self.split_into_text_sections(self.tts_instances[0], message):
             self.pool.add_job((text_section, False), self.text_to_speech_proc, self.wave_queue.put)
-        self.pool.wait_completion()
+        self.pool.wait_for_completion()
         self.wave_queue.join()
 
     def _play_audio(self, wave: list) -> None:
