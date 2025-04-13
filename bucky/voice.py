@@ -113,15 +113,18 @@ class VoiceQuality(Voice):
         self.wave_queue = queue.Queue()
 
         def play_sound_proc():
+            next_timeout = 3.0
             while True:
                 try:
-                    wave = self.wave_queue.get(timeout=2.0 if self.filler_sounds else None)
+                    wave = self.wave_queue.get(timeout=next_timeout if self.filler_sounds else None)
+                    next_timeout = 3.0
                     try:
                         self._play_audio(wave)
                     finally:
                         self.wave_queue.task_done()
                 except queue.Empty:
                     if self.filler_sounds_enabled and self.filler_sounds:
+                        next_timeout += 1
                         self._play_audio(random.choice(self.filler_sounds))
 
         self.player_thread = threading.Thread(target=play_sound_proc, daemon=True)

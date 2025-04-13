@@ -23,8 +23,11 @@ class MemoryStore:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO memory_store (value)
-                VALUES (?)
-            """, (memory,))
+                SELECT ?
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM memory_store WHERE value = ?
+                )
+            """, (memory, memory))
             conn.commit()
 
     def update(self, id: str, new_memory: str):

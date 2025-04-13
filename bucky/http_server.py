@@ -30,7 +30,7 @@ def to_html(data: Any) -> str:
         for key, value in data.items():
             rows.append(f"<tr><td align='right'>{key.title()}:</td><td>{value}</td></tr>")
         return f"<table border='0'>{''.join(rows)}</table>"
-    return f"{data}"
+    return f"{data}".strip().replace("\n", "<br>")
 
 
 class AgentStateHttpServerHandler(BaseHTTPRequestHandler):
