@@ -15,7 +15,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from bucky.memory_store import MemoryStore
 from bucky.message_utils import has_image_data
 from bucky.recorder import Recorder
-from bucky.voice import Voice
+from bucky.voices.voice import Voice
 
 
 class State(TypedDict):

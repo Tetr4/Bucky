@@ -6,6 +6,7 @@ import bucky.config as cfg
 
 logger = logging.getLogger(__name__)
 
+
 class HttpAudioSink(object):
     def __init__(self, url: str, rate: int, channels: int):
         self.url = url
@@ -25,3 +26,11 @@ class HttpAudioSink(object):
 
     def write(self, data):
         self.buffer += data.tobytes()
+
+
+def robot_speaker(rate: int, channels: int):
+    return HttpAudioSink(f"{cfg.bucky_uri}/speaker/play_sound?rate={rate}&channels={channels}&blocking=false", rate, channels)
+
+
+def local_speaker(rate: int, channels: int):
+    return sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')

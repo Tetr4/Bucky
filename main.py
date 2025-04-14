@@ -6,11 +6,13 @@ from bucky.tools.utility import get_current_time, TakeImageTool, EndConversation
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
 from bucky.agent import Agent, preload_ollama_model
-from bucky.voice import Voice, VoiceFast, VoiceQuality, robot_speaker, local_speaker
+from bucky.voices import Voice, VoiceFast, VoiceQuality
+from bucky.voices.voice_quality_low_latency import VoiceQualityLowLatency
 from bucky.recorder import Recorder, robot_mic, local_mic
 from bucky.robot import FakeBot, BuckyBot, IRobot
 from bucky.config import *
 from bucky.http_server import AgentStateHttpServer
+from bucky.audio_sink import robot_speaker, local_speaker
 
 # "llama3.2-vision-tools:11b" # "llama3.1:8b"  # "llama3.2-vision-tools:11b"
 llm = "PetrosStav/gemma3-tools:12b"
@@ -46,6 +48,8 @@ def main():
 
     # voice: Voice = VoiceFast(model='de_DE-thorsten-high', audio_sink_factory=speaker)
     voice: Voice = VoiceQuality(audio_sink_factory=speaker, pre_cached_phrases=["Howdy Partner!"], language="de")
+    # voice: Voice = VoiceQualityLowLatency(audio_sink_factory=speaker, pre_cached_phrases=[
+    #                                       "Howdy Partner!"], language="de")
 
     memory_store = MemoryStore("memory.db")
 
