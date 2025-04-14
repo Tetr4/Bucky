@@ -1,3 +1,2 @@
 https://github.com/Marc56K/piper-phonemize-win32/releases/download/v1.2.1/piper_phonemize-1.2.1-cp311-cp311-win_amd64.whl
-https://download.pytorch.org/whl/cu124/torch-2.5.1%2Bcu124-cp311-cp311-win_amd64.whl
-https://files.pythonhosted.org/packages/32/6a/019e426ab4af487167182a19e115fc03234fe28bc30e22cb0e1a9958f70e/torchaudio-2.5.1-cp311-cp311-win_amd64.whl
+https://download.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp311-cp311-win_amd64.whl
