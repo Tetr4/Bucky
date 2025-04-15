@@ -7,6 +7,9 @@ import bucky.config as cfg
 import whisper
 import time
 import wave
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Recorder:
@@ -43,11 +46,11 @@ class Recorder:
         torch_device = "cpu"
 
         # get cuda device with 5GB free memory
-        if cuda_device := get_free_cuda_device(5 * (1024**3)): 
-            print("WHISPER: creating GPU instance", cuda_device)
+        if cuda_device := get_free_cuda_device(5 * (1024**3)):
+            logger.info(f"WHISPER: creating GPU instance {cuda_device}")
             torch_device = cuda_device.torch_device
         else:
-            print("WHISPER: creating CPU instance")
+            logger.info("WHISPER: creating CPU instance")
 
         # preload the model
         self.recognizer.whisper_model = {self.model: whisper.load_model(
@@ -121,7 +124,7 @@ class Recorder:
             if ignore_garbage:
                 no_speech_prob_threshold: float = 5e-11
                 ignored = no_speech_prob > no_speech_prob_threshold
-            print("phrase:", phrase, f"({no_speech_prob=}, {ignored=})")
+            logger.info(f"phrase: {phrase}, ({no_speech_prob=}, {ignored=})")
             if not ignored and isinstance(audio, AudioData):
                 self.write_to_wav_file(phrase, audio)
                 return phrase
@@ -141,7 +144,7 @@ class Recorder:
                 wav_file.setframerate(data.sample_rate)
                 wav_file.writeframesraw(data.frame_data)
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error(f"An error occurred: {e}")
 
 
 def robot_mic():

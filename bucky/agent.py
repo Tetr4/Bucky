@@ -36,7 +36,7 @@ class Agent:
         self.memory_store = memory_store
         self.tools = tools
         self.voice = voice
-        self.llm = ChatOllama(model=model).bind_tools(tools)
+        self.llm = ChatOllama(model=model, keep_alive=-1).bind_tools(tools)
         self.graph = self._create_graph()
         self.recorder = recorder
         self.debug_state_callback: Optional[Callable[[list[BaseMessage]], None]] = None
@@ -142,4 +142,4 @@ class Agent:
 
 
 def preload_ollama_model(model: str):
-    ChatOllama(model=model).invoke(".")
+    ChatOllama(model=model, keep_alive=-1).invoke(".")
