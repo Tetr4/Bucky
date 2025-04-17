@@ -26,7 +26,7 @@ class Recorder:
         on_start_listening: Callable = lambda: None,
         on_stop_listening: Callable = lambda: None,
         on_waiting_for_wakeup: Callable = lambda: None,
-        on_wakeup: Callable[[bool], None] = lambda simple_wakeup: None,
+        on_wakeup: Callable[[], None] = lambda: None,
         has_user_attention: Callable[[], bool] = lambda: False,
     ) -> None:
         self.wakewords: list[str] = wakewords
@@ -45,15 +45,13 @@ class Recorder:
         # self.recognizer.dynamic_energy_threshold = False
         self.wait_for_wake_word = True
 
-        # try to use the GPU
-        torch_device = "cpu"
-
         # get cuda device with 5GB free memory
         if cuda_device := get_free_cuda_device(5 * (1024**3)):
             logger.info(f"WHISPER: creating GPU instance {cuda_device}")
             torch_device = cuda_device.torch_device
         else:
             logger.info("WHISPER: creating CPU instance")
+            torch_device = "cpu"
 
         # preload the model
         self.recognizer.whisper_model = {self.model: whisper.load_model(
@@ -111,9 +109,9 @@ class Recorder:
                         if not transcription.phrase:
                             continue
 
-                        if contains_any_wakeword(transcription.phrase) or (not transcription.is_noise and self.has_user_attention()):
+                        if contains_any_wakeword(transcription.phrase):
                             last_wakeup_phrase = transcription.phrase.strip()
-                            self.on_wakeup(not is_complex_wakeup_phrase(last_wakeup_phrase))
+                            self.on_wakeup()
                             break
 
     def stop_listening(self):

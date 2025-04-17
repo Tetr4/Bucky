@@ -75,14 +75,11 @@ def main():
         voice.set_filler_phrases_enabled(False)
         fx_player.play_descending_chime()
         robot.emote_doze(delay=1.0)
-        tracker.start()
 
-    def on_wakeup(simple_wakeup: bool):
+    def on_wakeup():
         voice.set_filler_phrases_enabled(False)
         robot.emote_attention()
-        if simple_wakeup:
-            voice.speak("Howdy Partner!")
-        tracker.stop()
+        voice.speak("Howdy Partner!")
 
     recorder = Recorder(
         wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],
