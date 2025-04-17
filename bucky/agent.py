@@ -13,7 +13,7 @@ from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from bucky.memory_store import MemoryStore
-from bucky.message_utils import has_image_data
+from bucky.common.message_utils import has_image_data
 from bucky.recorder import Recorder
 from bucky.voices.voice import Voice
 

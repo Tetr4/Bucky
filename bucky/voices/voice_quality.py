@@ -9,9 +9,9 @@ import time
 import hashlib
 import pickle
 import os
-from bucky.gpu_utils import get_cuda_devices
+from bucky.common.gpu_utils import get_cuda_devices
 from TTS.api import TTS
-from bucky.threading_utils import ThreadWorkerPool
+from bucky.common.thread_utils import ThreadWorkerPool
 from bucky.voices.voice import Voice, voice_data_dir
 
 

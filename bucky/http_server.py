@@ -2,7 +2,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
 import threading
 from typing import Any
-from bucky.message_utils import resolve_content, ContentType
+from bucky.common.message_utils import resolve_content, ContentType
 from langchain_core.messages import BaseMessage
 
 HTML_PAGE_TEMPLATE = """<!DOCTYPE html>

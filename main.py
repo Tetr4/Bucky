@@ -7,6 +7,7 @@ from bucky.tools.utility import get_current_time, TakeImageTool, EndConversation
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
 from bucky.agent import Agent, preload_ollama_model
+from bucky.vision.user_tracking import UserTracker
 from bucky.voices import Voice, VoiceFast, VoiceQuality, VoiceQualityLowLatency
 from bucky.recorder import Recorder, robot_mic, local_mic
 from bucky.robot import FakeBot, BuckyBot, IRobot
@@ -56,24 +57,32 @@ def main():
 
     memory_store = MemoryStore("memory.db")
 
+    tracker = UserTracker(cam_stream_factory=robot.open_camera_stream,
+                          max_num_faces=2, debug_mode=False)
+
     def on_start_listening():
         voice.set_filler_phrases_enabled(False)
         robot.emote_attention()
         fx_player.play_rising_chime()
+        tracker.start()
 
     def on_stop_listening():
         voice.set_filler_phrases_enabled(True)
         robot.emote_idle()
+        tracker.stop()
 
-    def on_waiting_for_wakewords():
+    def on_waiting_for_wakeup():
         voice.set_filler_phrases_enabled(False)
         fx_player.play_descending_chime()
         robot.emote_doze(delay=1.0)
+        tracker.start()
 
-    def on_wakeword_detected():
+    def on_wakeup(simple_wakeup: bool):
         voice.set_filler_phrases_enabled(False)
         robot.emote_attention()
-        voice.speak("Howdy Partner!")
+        if simple_wakeup:
+            voice.speak("Howdy Partner!")
+        tracker.stop()
 
     recorder = Recorder(
         wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],
@@ -82,8 +91,9 @@ def main():
         audio_source_factory=mic,
         on_start_listening=on_start_listening,
         on_stop_listening=on_stop_listening,
-        on_waiting_for_wakewords=on_waiting_for_wakewords,
-        on_wakeword_detected=on_wakeword_detected,
+        on_waiting_for_wakeup=on_waiting_for_wakeup,
+        on_wakeup=on_wakeup,
+        has_user_attention=lambda: tracker.max_attention > 0.5
     )
 
     tools = [

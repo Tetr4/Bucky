@@ -1,10 +1,18 @@
+from threading import Thread, RLock
+from typing import Optional
 import base64
 import httpx
-import threading
 import queue
+import numpy as np
 import requests
+import cv2
 import time
 from abc import ABC, abstractmethod
+from bucky.vision import CameraStream
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class IRobot(ABC):
@@ -37,11 +45,59 @@ class IRobot(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def take_image(self, width=640, height=480) -> str:
+    def take_image(self, width: int = 640, height: int = 480) -> str:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def open_camera_stream(self, width: int = 800, height: int = 600) -> CameraStream:
         raise NotImplementedError()
 
 
 class FakeBot(IRobot):
+    def __init__(self):
+        self._lock = RLock()
+        self._cam: Optional[cv2.VideoCapture] = None
+        self._cam_resolution: tuple[int, int] = (0, 0)
+        self._cam_streams: int = 0
+
+    def _add_ref_camera(self):
+        with self._lock:
+            if self._cam is None:
+                logger.debug("creating VideoCapture(0) instance")
+                self._cam = cv2.VideoCapture(0)
+            self._cam_streams += 1
+
+    def _release_camera(self):
+        with self._lock:
+            self._cam_streams = max(0, self._cam_streams - 1)
+            if self._cam_streams == 0 and self._cam is not None:
+                logger.debug("releasing VideoCapture(0) instance")
+                self._cam_resolution = (0, 0)
+                try:
+                    self._cam.release()
+                except Exception as error:
+                    logger.error(error)
+                finally:
+                    self._cam = None
+
+    def _read_camera_frame(self, width: int, height: int) -> Optional[np.ndarray]:
+        with self._lock:
+            if self._cam is not None:
+                if self._cam_resolution != (width, height):
+                    logger.debug(f"changing camera resolution to {width}x{height}")
+                    self._cam_resolution = (width, height)
+                    self._cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                    self._cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+
+                if self._cam.isOpened():
+                    ret, frame = self._cam.read()
+                    if ret:
+                        return frame
+                    logger.error(f"{self._cam.getBackendName()}: Capturing camera image failed.")
+                else:
+                    logger.error("Failed to open camera.")
+        return None
+
     def release(self) -> None:
         pass
 
@@ -64,36 +120,39 @@ class FakeBot(IRobot):
         pass
 
     def take_image(self, width=640, height=480) -> str:
-        try:
-            import cv2
-            cam = cv2.VideoCapture(0)
-            try:
-                if cam.isOpened():
-                    cam.grab()
-                    time.sleep(1.0)  # wait a moment for stuff like autofocus
-                    name = cam.getBackendName()
-                    cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-                    ret, frame = cam.read()
-                    if ret:
-                        _, jpeg = cv2.imencode('.jpg', frame)
-                        jpeg_bytes = jpeg.tobytes()
-                        print(f"{name}: Captured camera image size {len(jpeg_bytes)} bytes.")
-                        # with open("assets/images/captured_image.jpg", "wb") as file:
-                        #     file.write(jpeg_bytes)
-                        return base64.b64encode(jpeg_bytes).decode("utf-8")
-                    print("{name}: Capturing camera image failed.")
-                else:
-                    print("No camera found.")
-            finally:
-                cam.release()
-        except ImportError as ex:
-            print(str(ex))
+        with self._lock:
+            cam_stream = self.open_camera_stream(width, height)
+            with cam_stream:
+                frame: Optional[cv2.typing.MatLike] = cam_stream.read()
+                if frame is not None:
+                    _, jpeg = cv2.imencode('.jpg', frame)
+                    jpeg_bytes = jpeg.tobytes()
+                    logger.info(f"Captured camera image size {len(jpeg_bytes)} bytes.")
+                    # with open("assets/images/captured_image.jpg", "wb") as file:
+                    #     file.write(jpeg_bytes)
+                    return base64.b64encode(jpeg_bytes).decode("utf-8")
 
         default_img_path = "assets/images/horse.jpg"
+        logger.error(f"Capturing camera image failed. Using default image: {default_img_path}")
         with open(default_img_path, "rb") as image_file:
             print(default_img_path)
             return base64.b64encode(image_file.read()).decode("utf-8")
+
+    def open_camera_stream(self, width: int = 800, height: int = 600) -> CameraStream:
+        class WebCameraStream(CameraStream):
+            def __init__(self, bot: FakeBot, width: int, height: int):
+                self._bot = bot
+                self._width = width
+                self._height = height
+                self._bot._add_ref_camera()
+
+            def __exit__(self, type, value, traceback):
+                self._bot._release_camera()
+
+            def read(self) -> Optional[np.ndarray]:
+                return self._bot._read_camera_frame(self._width, self._height)
+
+        return WebCameraStream(self, width, height)
 
 
 class BuckyBot(IRobot):
@@ -108,7 +167,7 @@ class BuckyBot(IRobot):
                 except Exception as ex:
                     print("ERROR", str(ex))
 
-        self.thread = threading.Thread(target=thread_proc, daemon=True)
+        self.thread = Thread(target=thread_proc, daemon=True)
         self.thread.start()
 
     def __run_async(self, func) -> None:
@@ -191,3 +250,28 @@ class BuckyBot(IRobot):
         # with open(f"{time.time()}.jpg", "wb") as file:
         #    file.write(bytes)
         return base64.b64encode(bytes).decode("utf-8")
+
+    def open_camera_stream(self, width: int = 800, height: int = 600) -> CameraStream:
+        class HttpCameraStream(CameraStream):
+            def __init__(self, url: str):
+                self._url = url
+                logger.debug(f"creating video stream: {self._url}")
+                self._cam: cv2.VideoCapture = cv2.VideoCapture(url)
+
+            def __exit__(self, type, value, traceback):
+                logger.debug(f"releasing video stream: {self._url}")
+                try:
+                    self._cam.release()
+                except Exception as error:
+                    logger.error(error)
+
+            def read(self) -> Optional[np.ndarray]:
+                if self._cam.isOpened():
+                    ret, frame = self._cam.read()
+                    if ret:
+                        return frame
+                    logger.error(f"Capturing video image failed.")
+                else:
+                    logger.error("Failed to open video stream.")
+
+        return HttpCameraStream(f"{self.url}/cam/live?width={width}&height={height}")

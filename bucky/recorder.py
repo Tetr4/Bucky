@@ -1,6 +1,6 @@
 from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
-from typing import Callable, Optional
-from bucky.gpu_utils import get_free_cuda_device
+from typing import Callable, NamedTuple, Optional
+from bucky.common.gpu_utils import get_free_cuda_device
 from bucky.audio_source import HttpAudioSource
 from pathlib import Path
 import bucky.config as cfg
@@ -10,6 +10,8 @@ import wave
 import logging
 
 logger = logging.getLogger(__name__)
+
+Transcription = NamedTuple("Transcription", [('is_noise', bool), ('phrase', str)])
 
 
 class Recorder:
@@ -23,10 +25,10 @@ class Recorder:
         wav_output_dir: Optional[Path] = None,
         on_start_listening: Callable = lambda: None,
         on_stop_listening: Callable = lambda: None,
-        on_waiting_for_wakewords: Callable = lambda: None,
-        on_wakeword_detected: Callable = lambda: None,
+        on_waiting_for_wakeup: Callable = lambda: None,
+        on_wakeup: Callable[[bool], None] = lambda simple_wakeup: None,
+        has_user_attention: Callable[[], bool] = lambda: False,
     ) -> None:
-
         self.wakewords: list[str] = wakewords
         self.wakeword_timeout: Optional[float] = wakeword_timeout
         self.language: str = language
@@ -35,8 +37,9 @@ class Recorder:
         self.wav_output_dir: Optional[Path] = wav_output_dir
         self.on_start_listening: Callable = on_start_listening
         self.on_stop_listening: Callable = on_stop_listening
-        self.on_waiting_for_wakewords: Callable = on_waiting_for_wakewords
-        self.on_wakeword_detected: Callable = on_wakeword_detected
+        self.on_waiting_for_wakeup: Callable = on_waiting_for_wakeup
+        self.on_wakeup: Callable = on_wakeup
+        self.has_user_attention: Callable[[], bool] = has_user_attention
 
         self.recognizer = Recognizer()
         # self.recognizer.dynamic_energy_threshold = False
@@ -64,14 +67,17 @@ class Recorder:
                     return True
             return False
 
-        last_wakeword_phrase: str = ""
+        def is_complex_wakeup_phrase(phrase: str) -> bool:
+            return len(phrase.split()) > 3 or phrase.endswith("?")
+
+        last_wakeup_phrase: str = ""
 
         while True:
             if not self.wait_for_wake_word:
                 print("Listening...")
-                if len(last_wakeword_phrase.split()) > 3:
+                if is_complex_wakeup_phrase(last_wakeup_phrase):
                     self.on_stop_listening()
-                    return last_wakeword_phrase
+                    return last_wakeup_phrase
                 else:
                     self.on_start_listening()
 
@@ -80,40 +86,40 @@ class Recorder:
                 with source:
                     start = time.time()
                     while True:
-                        transcription = None
                         try:
                             timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
-                            if transcription := self.recognize(source, ignore_garbage=True, timeout=timeout):
+                            if phrase := self.recognize(source, ignore_noise=True, timeout=timeout).phrase:
                                 self.on_stop_listening()
-                                return f"{last_wakeword_phrase} {transcription}".strip()
+                                return f"{last_wakeup_phrase} {phrase}".strip()
                             if timeout and (time.time() - start) > timeout:
-                                break
+                                raise WaitTimeoutError()
                         except WaitTimeoutError:
-                            break
+                            if not self.has_user_attention():
+                                break
 
             self.wait_for_wake_word = False
 
             if self.wakewords:
-                self.on_waiting_for_wakewords()
+                self.on_waiting_for_wakeup()
 
                 print("Waiting for Wakeword...")
                 self.recognizer.pause_threshold = 1.0
                 source = self.source_factory()
                 with source:
                     while True:
-                        phrase = self.recognize(source)
-                        if not phrase:
+                        transcription = self.recognize(source, ignore_noise=False)
+                        if not transcription.phrase:
                             continue
-                        if contains_any_wakeword(phrase):
-                            last_wakeword_phrase = phrase.strip()
-                            break
 
-                self.on_wakeword_detected()
+                        if contains_any_wakeword(transcription.phrase) or (not transcription.is_noise and self.has_user_attention()):
+                            last_wakeup_phrase = transcription.phrase.strip()
+                            self.on_wakeup(not is_complex_wakeup_phrase(last_wakeup_phrase))
+                            break
 
     def stop_listening(self):
         self.wait_for_wake_word = True
 
-    def recognize(self, source: AudioSource, ignore_garbage: bool = False, timeout: Optional[float] = None) -> str:
+    def recognize(self, source: AudioSource, ignore_noise: bool = False, timeout: Optional[float] = None) -> Transcription:
         audio = self.recognizer.listen(source, timeout=timeout)
         result = self.recognizer.recognize_whisper(
             audio, model=self.model, language=self.language, show_dict=True
@@ -121,15 +127,16 @@ class Recorder:
         if phrase := result["text"].strip():
             ignored = False
             no_speech_prob = result['segments'][0]["no_speech_prob"]
-            if ignore_garbage:
-                no_speech_prob_threshold: float = 5e-11
-                ignored = no_speech_prob > no_speech_prob_threshold
+            no_speech_prob_threshold: float = 5e-11
+            is_noise = no_speech_prob > no_speech_prob_threshold
+            if ignore_noise:
+                ignored = is_noise
             logger.info(f"phrase: {phrase}, ({no_speech_prob=}, {ignored=})")
             if not ignored and isinstance(audio, AudioData):
                 self.write_to_wav_file(phrase, audio)
-                return phrase
+                return Transcription(is_noise, phrase)
 
-        return ""
+        return Transcription(True, "")
 
     def write_to_wav_file(self, transcript: str, data: AudioData):
         if not self.wav_output_dir:

@@ -34,5 +34,6 @@ def get_cuda_devices() -> list[CudaDevice]:
 
 
 def get_free_cuda_device(free_memory: int = 0) -> Optional[CudaDevice]:
-    devs = sorted((dev for dev in get_cuda_devices() if dev.free_memory >= free_memory), key=lambda dev: dev.free_memory, reverse=True)
+    devs = sorted((dev for dev in get_cuda_devices() if dev.free_memory >=
+                  free_memory), key=lambda dev: dev.free_memory, reverse=True)
     return next(iter(devs), None)

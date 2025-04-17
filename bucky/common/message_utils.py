@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Optional
+from typing import Any
 from langchain_core.messages import BaseMessage, AIMessage, ToolMessage, ToolCall
 
 

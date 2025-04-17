@@ -11,7 +11,7 @@ import hashlib
 import pickle
 import os
 import logging
-from bucky.gpu_utils import get_free_cuda_device
+from bucky.common.gpu_utils import get_free_cuda_device
 from TTS.api import TTS
 from TTS.utils.synthesizer import Synthesizer
 from TTS.tts.models.xtts import Xtts
