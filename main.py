@@ -1,8 +1,12 @@
+from datetime import datetime
 import logging
+
+from pytz import timezone
 from bucky.fx_player import FxPlayer
 from bucky.memory_store import MemoryStore
 from bucky.tools.emote import EmoteTool
 from bucky.tools.memory import CreateMemoryTool, UpdateMemoryTool, DeleteMemoryTool
+from bucky.tools.movement import TurnTool
 from bucky.tools.utility import get_current_time, TakeImageTool, EndConversationTool
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
@@ -24,9 +28,11 @@ system_prompt_template = """
 Voice: Talk like a friendly and funny cowboy. Keep your answers very short and always stay in character, i.e. do not mention function calls to the user. Always answer in german.
 Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
 Important! Always answer in German! Don't use emojis!
+Important! If possible, turn towards the user until he is in front of you.
 
 Current time is: {current_time}
 Current location: Braunschweig in Germany
+Direction towards user: {user_direction}
 
 This is your long term memory of facts:
 {memories}
@@ -58,7 +64,7 @@ def main():
     memory_store = MemoryStore("memory.db")
 
     tracker = UserTracker(cam_stream_factory=robot.open_camera_stream,
-                          max_num_faces=2, debug_mode=False)
+                          max_num_faces=2, debug_mode=True)
 
     def on_start_listening():
         voice.set_filler_phrases_enabled(False)
@@ -97,6 +103,7 @@ def main():
         TakeImageTool(robot),
         EndConversationTool(recorder.stop_listening),
         EmoteTool(robot),
+        # TurnTool(robot),
         get_weather_forecast,
         # get_random_meal,
         # search_meal_by_ingredient,
@@ -107,12 +114,20 @@ def main():
 
     agent = Agent(
         model=llm,
-        memory_store=memory_store,
         system_prompt_template=system_prompt_template,
         tools=tools,
         voice=voice,  # Optional
         recorder=recorder  # Optional
     )
+
+    def get_formatted_system_prompt(system_prompt_template: str) -> str:
+        memories: dict[str, str] = memory_store.dump()
+        now = datetime.now().astimezone(timezone("Europe/Berlin")).isoformat()
+        return system_prompt_template.format(memories=memories,
+                                             current_time=now,
+                                             user_direction=tracker.user_direction)
+
+    agent.system_prompt_format_callback = get_formatted_system_prompt
 
     http_server = AgentStateHttpServer()
     agent.debug_state_callback = http_server.set_agent_state

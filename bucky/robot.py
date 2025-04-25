@@ -45,6 +45,14 @@ class IRobot(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def turn_left(self) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def turn_right(self) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
     def take_image(self, width: int = 640, height: int = 480) -> str:
         raise NotImplementedError()
 
@@ -117,6 +125,12 @@ class FakeBot(IRobot):
         pass
 
     def emote_attention(self, delay: float = 0.0) -> None:
+        pass
+
+    def turn_left(self) -> None:
+        pass
+
+    def turn_right(self) -> None:
         pass
 
     def take_image(self, width=640, height=480) -> str:
@@ -243,6 +257,20 @@ class BuckyBot(IRobot):
             requests.get(f"{self.url}/eyes/set_position?position=CENTER")
             requests.get(f"{self.url}/eyes/open?left=true&right=true")
             requests.get(f"{self.url}/eyes/set_autoblinker?on=true")
+        self.__run_async(func)
+
+    def turn_left(self) -> None:
+        def func():
+            requests.get(f"{self.url}/motors/set_speed?left=-200&right=200")
+            time.sleep(0.2)
+            requests.get(f"{self.url}/motors/set_speed?left=0&right=0")
+        self.__run_async(func)
+
+    def turn_right(self) -> None:
+        def func():
+            requests.get(f"{self.url}/motors/set_speed?left=200&right=-200")
+            time.sleep(0.2)
+            requests.get(f"{self.url}/motors/set_speed?left=0&right=0")
         self.__run_async(func)
 
     def take_image(self, width=640, height=480) -> str:

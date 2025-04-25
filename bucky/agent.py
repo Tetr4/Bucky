@@ -1,5 +1,3 @@
-from datetime import datetime
-from pytz import timezone
 from typing import Callable, Literal, Optional, Annotated
 from typing_extensions import TypedDict
 from langchain_core.runnables import RunnableConfig
@@ -12,7 +10,6 @@ from langgraph.graph.message import add_messages
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.memory import MemorySaver
-from bucky.memory_store import MemoryStore
 from bucky.common.message_utils import has_image_data
 from bucky.recorder import Recorder
 from bucky.voices.voice import Voice
@@ -27,25 +24,25 @@ class Agent:
             self,
             model: str,
             system_prompt_template: str,
-            memory_store: MemoryStore,
             tools: list[BaseTool],
             voice: Voice | None = None,
             recorder: Recorder | None = None
     ) -> None:
         self.system_prompt_template = system_prompt_template
-        self.memory_store = memory_store
         self.tools = tools
         self.voice = voice
         self.llm = ChatOllama(model=model, keep_alive=-1).bind_tools(tools)
         self.graph = self._create_graph()
         self.recorder = recorder
+        self.system_prompt_format_callback: Optional[Callable[[str], str]] = None
         self.debug_state_callback: Optional[Callable[[list[BaseMessage]], None]] = None
 
     @property
     def system_message(self) -> list[BaseMessage]:
-        memories = self.memory_store.dump()
-        now = datetime.now().astimezone(timezone("Europe/Berlin")).isoformat()
-        system_prompt = self.system_prompt_template.format(memories=memories, current_time=now)
+        system_prompt = self.system_prompt_template
+        if self.system_prompt_format_callback is not None:
+            system_prompt = self.system_prompt_format_callback(system_prompt)
+
         # print(f"System prompt: {system_prompt}")
         return [SystemMessage(content=system_prompt)]
 

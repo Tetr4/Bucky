@@ -4,13 +4,21 @@ import math
 import numpy as np
 from typing import Optional
 from google._upb._message import RepeatedCompositeContainer
-from mediapipe.python.solutions import face_mesh as mp_face_mesh
-from mediapipe.python.solutions import drawing_utils as mp_drawing
-from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmark  # type: ignore
 from dataclasses import dataclass
 from bucky.common.conversion import to_cv_coords, to_point_3d
 import bucky.common.math_utils as math_utils
-from bucky.common.simple_types import Point3D, ColorBGR, EulerAngles
+from bucky.common.simple_types import Point2D, Point3D, ColorBGR, EulerAngles
+from mediapipe.python.solutions.face_mesh_connections import FACEMESH_CONTOURS
+
+TRACKING_LANDMARKS_IDS = {
+    "nose_tip": 1,
+    "chin": 152,
+    "left_eye_outer": 263,
+    "right_eye_outer": 33,
+    "left_mouth": 287,
+    "right_mouth": 57,
+    "between_eyes": 8
+}
 
 
 @dataclass
@@ -19,63 +27,23 @@ class FaceRawData:
     landmarks: RepeatedCompositeContainer
 
 
-@dataclass
-class Eye:
-    raw_data: FaceRawData
-    contour_ids: list[int]
-    iris_id: int
-
-    @property
-    def contour(self) -> list[Point3D]:
-        result = []
-        for i in range(len(self.contour_ids)):
-            result.append(to_point_3d(self.raw_data.landmarks[self.contour_ids[i]]))
-        return result
-
-    @property
-    def iris_center(self) -> Point3D:
-        return to_point_3d(self.raw_data.landmarks[self.iris_id])
-
-    def draw(self, image: np.ndarray, color: ColorBGR):
-        c: list[Point3D] = self.contour
-        for i in range(len(c)):
-            a = to_cv_coords(image, c[i])
-            b = to_cv_coords(image, c[(i + 1) % len(c)])
-            cv2.line(image, a, b, color, 2)
-
-        iris_cv_pos: cv2.typing.Point = to_cv_coords(image, self.raw_data.landmarks[self.iris_id])
-        cv2.circle(image, iris_cv_pos, 4, color, 1)
-
-
 class Face:
-    IMPORTANT_LANDMARKS_IDS = {
-        "nose_tip": 1,
-        "chin": 152,
-        "left_eye_outer": 263,
-        "right_eye_outer": 33,
-        "left_mouth": 287,
-        "right_mouth": 57
-    }
-
     def __init__(self, raw_data: FaceRawData):
         self.raw_data = raw_data
 
-        self.left_eye = Eye(
-            raw_data=raw_data,
-            contour_ids=[133, 155, 154, 153, 145, 144, 163, 7, 33, 246, 161, 160, 159, 158, 157, 173],
-            iris_id=468)
-
-        self.right_eye = Eye(
-            raw_data=raw_data,
-            contour_ids=[362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398],
-            iris_id=473)
-
     @property
-    def important_landmarks(self) -> dict[str, Point3D]:
+    def tracking_landmarks(self) -> dict[str, Point3D]:
         result: dict[str, Point3D] = {}
-        for name, idx in Face.IMPORTANT_LANDMARKS_IDS.items():
+        for name, idx in TRACKING_LANDMARKS_IDS.items():
             result[name] = to_point_3d(self.raw_data.landmarks[idx])
         return result
+
+    @property
+    def position(self) -> Point2D:
+        size = self.raw_data.camera_image.shape
+        pos: cv2.typing.Point = to_cv_coords(self.raw_data.camera_image, self.tracking_landmarks["between_eyes"])
+        return Point2D((pos[0] / (size[1] - 1) - 0.5) * 2.0,
+                       (pos[1] / (size[0] - 1) - 0.5) * 2.0)
 
     @property
     def rotation(self) -> Optional[EulerAngles]:
@@ -89,7 +57,7 @@ class Face:
             [28.9, -28.9, -24.1]     # Right mouth corner
         ])
 
-        points: dict[str, Point3D] = self.important_landmarks
+        points: dict[str, Point3D] = self.tracking_landmarks
         image_points = [
             to_cv_coords(self.raw_data.camera_image, points["nose_tip"]),
             to_cv_coords(self.raw_data.camera_image, points["chin"]),
@@ -156,8 +124,13 @@ class Face:
         return yaw_prob * pitch_prob
 
     def draw(self, image: np.ndarray, color: ColorBGR):
-        self.left_eye.draw(image, color)
-        self.right_eye.draw(image, color)
+        self._draw_mesh_edges(image, FACEMESH_CONTOURS, color)
 
-        for pos in self.important_landmarks.values():
-            cv2.circle(image, to_cv_coords(image, pos), 3, color, -1)
+        for pos in self.tracking_landmarks.values():
+            cv2.circle(image, to_cv_coords(image, pos), 3, (255, 255, 0), -1)
+
+    def _draw_mesh_edges(self, image: np.ndarray, mesh_edges: frozenset[tuple[int, int]], color: ColorBGR):
+        for a_id, b_id in mesh_edges:
+            a = to_cv_coords(image, self.raw_data.landmarks[a_id])
+            b = to_cv_coords(image, self.raw_data.landmarks[b_id])
+            cv2.line(image, a, b, color, 2)

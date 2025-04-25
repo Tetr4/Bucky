@@ -5,11 +5,11 @@ import logging
 import time
 import queue
 from threading import RLock, Thread, Event
-from typing import Optional, Callable
+from typing import Literal, Optional, Callable
 from mediapipe.python.solutions import face_mesh as mp_face_mesh
 from mediapipe.python.solutions import drawing_utils as mp_drawing
 from bucky.common.conversion import probability_to_color
-from bucky.common.simple_types import ColorBGR
+from bucky.common.simple_types import ColorBGR, Point2D
 from bucky.vision import CameraStream
 from bucky.vision.face import Face, FaceRawData
 
@@ -28,7 +28,6 @@ class UserTracker:
 
         self._debug_mode = debug_mode
         self._debug_queue = queue.Queue(maxsize=3)
-        self._debug_face_colors: list[ColorBGR] = [ColorBGR(0, 255, 0), ColorBGR(255, 0, 255), ColorBGR(255, 255, 0)]
         self._debug_landmark_drawing_spec = mp_drawing.DrawingSpec(thickness=0, circle_radius=0, color=(128, 128, 128))
         self._debug_connection_drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=0, color=(64, 64, 64))
 
@@ -52,6 +51,18 @@ class UserTracker:
                 logger.info(f"max_attention={face.attention}")
                 return face.attention
             return 0.0
+
+    @property
+    def user_direction(self) -> Literal["unknown", "in front", "left", "right"]:
+        if face := self.face_with_max_attention:
+            pos: Point2D = face.position
+            if pos.x < -0.3:
+                return "left"
+            elif pos.x > 0.3:
+                return "right"
+            else:
+                return "in front"
+        return "unknown"
 
     def start(self):
         with self._thread_lock:
@@ -101,10 +112,15 @@ class UserTracker:
 
                 if self._debug_mode and (face := self.face_with_max_attention):
                     max_att: float = face.attention
+                    pos: Point2D = face.position
                     col: ColorBGR = probability_to_color(max_att)
-                    label: str = f"Attention: {int(max_att * 100)}%"
-                    cv2.putText(camera_image, label, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 5)
-                    cv2.putText(camera_image, label, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, col, 2)
+
+                    def draw_text(txt: str, pos: cv2.typing.Point, font_scale: float):
+                        cv2.putText(camera_image, txt, pos, cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), 5)
+                        cv2.putText(camera_image, txt, pos, cv2.FONT_HERSHEY_SIMPLEX, font_scale, col, 2)
+
+                    draw_text(f"Position: x={pos.x:.2f} y={pos.y:.2f} {self.user_direction}", (50, 30), 0.8)
+                    draw_text(f"Attention: {int(max_att * 100)}%", (50, 70), 1)
 
             if self._debug_mode:
                 self._debug_queue.put(camera_image)
