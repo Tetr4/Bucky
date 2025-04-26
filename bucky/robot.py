@@ -301,5 +301,6 @@ class BuckyBot(IRobot):
                     logger.error(f"Capturing video image failed.")
                 else:
                     logger.error("Failed to open video stream.")
+                return None
 
         return HttpCameraStream(f"{self.url}/cam/live?width={width}&height={height}")

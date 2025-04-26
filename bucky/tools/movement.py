@@ -1,28 +1,30 @@
-from typing import Type
-from pydantic import BaseModel, Field
+from typing import Optional
 from langchain_core.tools import BaseTool
 from bucky.robot import IRobot
+from bucky.vision.user_tracking import UserTracker
 
 
-class TurnToolInput(BaseModel):
-    direction: str = Field(description="The direction to turn. Possible directions are 'left' or 'right'.")
-
-
-class TurnTool(BaseTool):
+class TurnTowardsUserTool(BaseTool):
     name: str = "turn"
-    description: str = "Use this to turn your body."
-    args_schema: Type[BaseModel] = TurnToolInput  # type: ignore
-    robot: IRobot = None  # type: ignore
+    description: str = "Use this to turn your body towards the user."
+    robot: Optional[IRobot] = None
+    tracker: Optional[UserTracker] = None
 
-    def __init__(self, robot: IRobot):
+    def __init__(self, robot: IRobot, tracker: UserTracker):
         super().__init__()
         self.robot = robot
+        self.tracker = tracker
 
-    def _run(self, direction: str) -> str:
-        if direction == "left":
+    def _run(self) -> str:
+        assert self.robot
+        assert self.tracker
+        dir: str = self.tracker.user_direction
+        if dir == "left":
             self.robot.turn_left()
-            return "turned left"
-        elif direction == "right":
+            return "turned left towards the user"
+        elif dir == "right":
             self.robot.turn_right()
-            return "turned right"
-        return "not turned"
+            return "turned right towards the user"
+        elif dir == "front":
+            return "already facing towards the user"
+        return "user not found"

@@ -6,7 +6,7 @@ from bucky.fx_player import FxPlayer
 from bucky.memory_store import MemoryStore
 from bucky.tools.emote import EmoteTool
 from bucky.tools.memory import CreateMemoryTool, UpdateMemoryTool, DeleteMemoryTool
-from bucky.tools.movement import TurnTool
+from bucky.tools.movement import TurnTowardsUserTool
 from bucky.tools.utility import get_current_time, TakeImageTool, EndConversationTool
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
@@ -32,7 +32,7 @@ Important! If possible, turn towards the user until he is in front of you.
 
 Current time is: {current_time}
 Current location: Braunschweig in Germany
-Direction towards user: {user_direction}
+User attention: {user_attention}
 
 This is your long term memory of facts:
 {memories}
@@ -65,6 +65,7 @@ def main():
 
     tracker = UserTracker(cam_stream_factory=robot.open_camera_stream,
                           max_num_faces=2, debug_mode=True)
+    tracker.start()
 
     def on_start_listening():
         voice.set_filler_phrases_enabled(False)
@@ -103,7 +104,7 @@ def main():
         TakeImageTool(robot),
         EndConversationTool(recorder.stop_listening),
         EmoteTool(robot),
-        # TurnTool(robot),
+        TurnTowardsUserTool(robot, tracker),
         get_weather_forecast,
         # get_random_meal,
         # search_meal_by_ingredient,
@@ -125,7 +126,7 @@ def main():
         now = datetime.now().astimezone(timezone("Europe/Berlin")).isoformat()
         return system_prompt_template.format(memories=memories,
                                              current_time=now,
-                                             user_direction=tracker.user_direction)
+                                             user_attention=f"{int(tracker.max_attention * 100)}%")
 
     agent.system_prompt_format_callback = get_formatted_system_prompt
 

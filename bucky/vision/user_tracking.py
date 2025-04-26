@@ -53,7 +53,7 @@ class UserTracker:
             return 0.0
 
     @property
-    def user_direction(self) -> Literal["unknown", "in front", "left", "right"]:
+    def user_direction(self) -> Literal["unknown", "front", "left", "right"]:
         if face := self.face_with_max_attention:
             pos: Point2D = face.position
             if pos.x < -0.3:
@@ -61,7 +61,7 @@ class UserTracker:
             elif pos.x > 0.3:
                 return "right"
             else:
-                return "in front"
+                return "front"
         return "unknown"
 
     def start(self):
@@ -79,16 +79,18 @@ class UserTracker:
                 self._update_thread = None
 
     def _update_proc(self):
-        cam_stream: CameraStream = self._cam_stream_factory()
-        with cam_stream:
-            while self._continue.is_set():
-                with self._data_lock:
-                    camera_image = cam_stream.read()
-                    if camera_image is not None:
-                        self._update(camera_image)
-                        time.sleep(0.001)
-                        continue
-                time.sleep(1.0)
+        while self._continue.is_set():
+            cam_stream: CameraStream = self._cam_stream_factory()
+            with cam_stream:
+                while self._continue.is_set():
+                    with self._data_lock:
+                        camera_image = cam_stream.read()
+                        if camera_image is not None:
+                            self._update(camera_image)
+                            time.sleep(0.001)
+                            continue
+                    time.sleep(3.0)
+                    break
 
     def _update(self, camera_image: np.ndarray):
         with self._data_lock:
