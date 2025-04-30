@@ -79,14 +79,13 @@ class Recorder:
                 else:
                     self.on_start_listening()
 
-                self.recognizer.pause_threshold = 2
                 source = self.source_factory()
                 with source:
                     start = time.time()
                     while True:
                         try:
                             timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
-                            if phrase := self.recognize(source, ignore_noise=True, timeout=timeout).phrase:
+                            if phrase := self.recognize(source, pause_threshold = 2, ignore_noise=True, timeout=timeout).phrase:
                                 self.on_stop_listening()
                                 return f"{last_wakeup_phrase} {phrase}".strip()
                             if timeout and (time.time() - start) > timeout:
@@ -101,11 +100,11 @@ class Recorder:
                 self.on_waiting_for_wakeup()
 
                 print("Waiting for Wakeword...")
-                self.recognizer.pause_threshold = 1.0
+                
                 source = self.source_factory()
                 with source:
                     while True:
-                        transcription = self.recognize(source, ignore_noise=False)
+                        transcription = self.recognize(source, pause_threshold=1.0, ignore_noise=False)
                         if not transcription.phrase:
                             continue
 
@@ -117,10 +116,13 @@ class Recorder:
     def stop_listening(self):
         self.wait_for_wake_word = True
 
-    def recognize(self, source: AudioSource, ignore_noise: bool = False, timeout: Optional[float] = None) -> Transcription:
+    def recognize(self, source: AudioSource, pause_threshold: float, ignore_noise: bool = False, timeout: Optional[float] = None) -> Transcription:
+        self.recognizer.pause_threshold = pause_threshold
         audio = self.recognizer.listen(source, timeout=timeout)
         result = self.recognizer.recognize_whisper(
-            audio, model=self.model, language=self.language, show_dict=True
+            audio_data = audio, model=self.model, show_dict=True, load_options=None, language=self.language, translate=False,
+            condition_on_previous_text = False
+            # no_speech_threshold = None, logprob_threshold = None
         )
         if phrase := result["text"].strip():
             ignored = False
