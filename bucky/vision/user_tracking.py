@@ -134,3 +134,11 @@ class UserTracker:
                 break
             cv2.imshow(f"user tracking", camera_image)
             cv2.waitKey(1)
+
+# pdm run python -m bucky.vision.user_tracking
+if __name__ == "__main__":
+    from bucky.vision.webcam import WebCameraStream
+    tracker = UserTracker(lambda: WebCameraStream(800, 600), max_num_faces=2, debug_mode=True)
+    tracker.start()
+    input("press ENTER to exit")
+    tracker.stop()

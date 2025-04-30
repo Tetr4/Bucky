@@ -153,7 +153,7 @@ class FakeBot(IRobot):
             return base64.b64encode(image_file.read()).decode("utf-8")
 
     def open_camera_stream(self, width: int = 800, height: int = 600) -> CameraStream:
-        class WebCameraStream(CameraStream):
+        class FakeBotCameraStream(CameraStream):
             def __init__(self, bot: FakeBot, width: int, height: int):
                 self._bot = bot
                 self._width = width
@@ -166,7 +166,7 @@ class FakeBot(IRobot):
             def read(self) -> Optional[np.ndarray]:
                 return self._bot._read_camera_frame(self._width, self._height)
 
-        return WebCameraStream(self, width, height)
+        return FakeBotCameraStream(self, width, height)
 
 
 class BuckyBot(IRobot):
