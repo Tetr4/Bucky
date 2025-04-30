@@ -1,6 +1,6 @@
 from pathlib import Path
 import time
-from typing import Iterator
+from typing import Iterator, TYPE_CHECKING
 import numpy as np
 import sounddevice
 import torch
@@ -12,11 +12,23 @@ import pickle
 import os
 import logging
 from bucky.common.gpu_utils import get_free_cuda_device
-from TTS.api import TTS
-from TTS.utils.synthesizer import Synthesizer
-from TTS.tts.models.xtts import Xtts
-from TTS.tts.configs.xtts_config import XttsConfig
 from bucky.voices.voice import Voice, voice_data_dir
+from rich.progress import Progress
+
+if TYPE_CHECKING:
+    from TTS.utils.synthesizer import Synthesizer
+    from TTS.tts.models.xtts import Xtts
+    from TTS.tts.configs.xtts_config import XttsConfig
+else:
+    class TTS:
+        ...
+    class Synthesizer:
+        ...
+    class Xtts:
+        ...
+    class XttsConfig:
+        ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +41,6 @@ class VoiceQualityLowLatency(Voice):
                  pre_cached_phrases: list[str] = [],
                  chunk_size_in_seconds: float = 1.5,
                  audio_sink_factory=lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
-        # Note XTTS is not for commercial use: https://coqui.ai/cpml
-
         self.language = language
         self.audio_sink_factory = audio_sink_factory
         self.chunk_size_in_seconds = chunk_size_in_seconds
@@ -47,18 +57,21 @@ class VoiceQualityLowLatency(Voice):
 
     @property
     def synthesizer(self) -> Synthesizer:
+        from TTS.utils.synthesizer import Synthesizer
         synth = self.tts.synthesizer
         assert isinstance(synth, Synthesizer)
         return synth
 
     @property
     def tts_model(self) -> Xtts:
+        from TTS.tts.models.xtts import Xtts
         model = self.synthesizer.tts_model
         assert isinstance(model, Xtts)
         return model
 
     @property
     def tts_config(self) -> XttsConfig:
+        from TTS.tts.configs.xtts_config import XttsConfig
         cfg = self.synthesizer.tts_config
         assert isinstance(cfg, XttsConfig)
         return cfg
@@ -67,6 +80,10 @@ class VoiceQualityLowLatency(Voice):
         self.filler_sounds_enabled = enabled
 
     def _init_xtts(self, model: str, voice_template: Path):
+        # Note XTTS is not for commercial use: https://coqui.ai/cpml
+        logger.info("XTTS: loading ...")
+        from TTS.api import TTS
+        
         if cuda_device := get_free_cuda_device(2 * (1024**3)):
             logger.info(f"XTTS: creating GPU instance {cuda_device}")
             self.tts = TTS(model_name=model, progress_bar=False).to(
@@ -82,6 +99,8 @@ class VoiceQualityLowLatency(Voice):
             gpt_cond_chunk_len=cfg.gpt_cond_chunk_len,
             max_ref_length=cfg.max_ref_len,
             sound_norm_refs=cfg.sound_norm_refs)
+        
+        logger.info("XTTS: ready")
 
     def _adjust_dynamic_speed(self, inference_duration: float, total_audio_duration: float):
         if inference_duration <= 0 or total_audio_duration <= 0:
@@ -203,7 +222,7 @@ class VoiceQualityLowLatency(Voice):
                             random.shuffle(filler_phrases_pool)
                         self._enqueu_from_cache(filler_phrases_pool.pop())
 
-    def _init_phrase_cache(self, pre_cached_phrases: list[str], variations: int = 3):
+    def _init_phrase_cache(self, pre_cached_phrases: list[str], variations: int = 6):
         self.cached_audio_phrases: dict[str, list] = {}
         self.phrase_cache_dir = Path(voice_data_dir, "cached_phrases")
         self.phrase_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -232,15 +251,19 @@ class VoiceQualityLowLatency(Voice):
             except Exception as ex:
                 logger.error(ex)
 
-        additional_variants: int = 2
+        
+        additional_variants: int = 3
         for phrase in pre_cached_phrases:
             if waves := try_get_from_cache(phrase):
                 self.cached_audio_phrases[phrase] = waves
             else:
-                logger.info(f"preprocessing '{phrase}' ...")
-                waves = []
-                for _ in range(variations + additional_variants):
-                    waves.append(self._xtts_inference(phrase))
+                total = variations + additional_variants
+                with Progress(transient=True) as progress:
+                    task = progress.add_task(f"preprocessing '{phrase}'", total=total)
+                    waves = []
+                    for _ in range(total):
+                        waves.append(self._xtts_inference(phrase))
+                        progress.update(task, advance=1)
 
                 # sort by length
                 waves.sort(key=lambda wave: len(wave))
