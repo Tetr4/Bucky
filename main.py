@@ -1,5 +1,6 @@
 from datetime import datetime
 import logging
+import random
 from pytz import timezone
 from bucky.fx_player import FxPlayer
 from bucky.memory_store import MemoryStore
@@ -12,7 +13,7 @@ from bucky.tools.weather import get_weather_forecast
 from bucky.agent import Agent, preload_ollama_model
 from bucky.vision.user_tracking import UserTracker
 from bucky.voices import Voice, VoiceFast, VoiceQualityLowLatency
-from bucky.recorder import Recorder, robot_mic, local_mic
+from bucky.recorder import Recorder, Transcription, robot_mic, local_mic
 from bucky.robot import FakeBot, BuckyBot, IRobot
 from bucky.config import *
 from bucky.http_server import AgentStateHttpServer
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 # "llama3.2-vision-tools:11b" # "llama3.1:8b"  # "llama3.2-vision-tools:11b"
-llm = "PetrosStav/gemma3-tools:12b"#"mistral-small3.1"
+llm = "PetrosStav/gemma3-tools:27b"  # "mistral-small3.1"
 system_prompt_template = """
 Voice: Talk like a friendly and funny cowboy. Keep your answers very short and always stay in character, i.e. do not mention function calls to the user. Always answer in german.
 Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
@@ -56,9 +57,14 @@ def main():
 
     fx_player = FxPlayer(speaker)
 
+    greeting_phrases = ["Howdy Partner!", "Howdy!", "Moin!"]
+    question_phrases = ["was?", "wie?", "was hast du gesagt?", "hab dich nicht verstanden"]
+
     # voice: Voice = VoiceFast(model='de_DE-thorsten-high', audio_sink_factory=speaker)
-    voice: Voice = VoiceQualityLowLatency(audio_sink_factory=speaker, pre_cached_phrases=[
-                                          "Howdy Partner!"], language="de", chunk_size_in_seconds=1.5)
+    voice: Voice = VoiceQualityLowLatency(audio_sink_factory=speaker,
+                                          pre_cached_phrases=greeting_phrases + question_phrases,
+                                          language="de",
+                                          chunk_size_in_seconds=1.5)
 
     memory_store = MemoryStore("memory.db")
 
@@ -69,8 +75,8 @@ def main():
     def on_start_listening():
         voice.set_filler_phrases_enabled(False)
         robot.emote_attention()
-        fx_player.play_rising_chime()
         tracker.start()
+        fx_player.play_rising_chime().join()
 
     def on_stop_listening():
         voice.set_filler_phrases_enabled(True)
@@ -79,13 +85,17 @@ def main():
 
     def on_waiting_for_wakeup():
         voice.set_filler_phrases_enabled(False)
-        fx_player.play_descending_chime()
         robot.emote_doze(delay=1.0)
+        fx_player.play_descending_chime().join()
 
     def on_wakeup():
         voice.set_filler_phrases_enabled(False)
         robot.emote_attention()
-        voice.speak("Howdy Partner!")
+        voice.speak(random.choice(greeting_phrases))
+
+    def on_unintelligible(trans: Transcription):
+        if trans.speech_prob > 0.1 and trans.phrase != "Vielen Dank.":
+            voice.speak(random.choice(question_phrases))
 
     recorder = Recorder(
         wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],
@@ -96,6 +106,7 @@ def main():
         on_stop_listening=on_stop_listening,
         on_waiting_for_wakeup=on_waiting_for_wakeup,
         on_wakeup=on_wakeup,
+        on_unintelligible=on_unintelligible,
         has_user_attention=lambda: tracker.max_attention > 0.5
     )
 

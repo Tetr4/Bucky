@@ -19,7 +19,7 @@ cli_bold_yellow = "\x1b[33;1m"
 cli_bold_blue = "\x1b[34;1m"
 cli_color_reset = "\x1b[0m"
 
-Transcription = NamedTuple("Transcription", [('is_noise', bool), ('phrase', str)])
+Transcription = NamedTuple("Transcription", [("phrase", str), ("is_noise", bool), ("speech_prob", float)])
 
 
 class Recorder:
@@ -34,7 +34,8 @@ class Recorder:
         on_start_listening: Callable = lambda: None,
         on_stop_listening: Callable = lambda: None,
         on_waiting_for_wakeup: Callable = lambda: None,
-        on_wakeup: Callable[[], None] = lambda: None,
+        on_wakeup: Callable = lambda: None,
+        on_unintelligible: Callable[[Transcription], None] = lambda _: None,
         has_user_attention: Callable[[], bool] = lambda: False,
     ) -> None:
         self.wakewords: list[str] = wakewords
@@ -47,6 +48,7 @@ class Recorder:
         self.on_stop_listening: Callable = on_stop_listening
         self.on_waiting_for_wakeup: Callable = on_waiting_for_wakeup
         self.on_wakeup: Callable = on_wakeup
+        self.on_unintelligible: Callable[[Transcription], None] = on_unintelligible
         self.has_user_attention: Callable[[], bool] = has_user_attention
 
         self.recognizer = Recognizer()
@@ -93,9 +95,17 @@ class Recorder:
                     while True:
                         try:
                             timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
-                            if phrase := self.recognize(source, pause_threshold = 2, ignore_noise=True, timeout=timeout).phrase:
-                                self.on_stop_listening()
-                                return f"{last_wakeup_phrase} {phrase}".strip()
+                            trans: Transcription = self.recognize(source,
+                                                                  pause_threshold=2.0,
+                                                                  phrase_time_limit=None,
+                                                                  timeout=timeout)
+                            if trans.phrase:
+                                if trans.is_noise:
+                                    self.on_unintelligible(trans)
+                                    source.flush_stream()
+                                else:
+                                    self.on_stop_listening()
+                                    return f"{last_wakeup_phrase} {trans.phrase}".strip()
                             if timeout and (time.time() - start) > timeout:
                                 raise WaitTimeoutError()
                         except WaitTimeoutError:
@@ -110,7 +120,10 @@ class Recorder:
                     logger.info(f"{cli_bold_yellow}Waiting for Wakeword...{cli_color_reset}")
                     source.flush_stream()
                     while True:
-                        transcription = self.recognize(source, pause_threshold=1.0, ignore_noise=False)
+                        transcription = self.recognize(source,
+                                                       pause_threshold=1.0,
+                                                       phrase_time_limit=10.0,
+                                                       timeout=None)
                         if not transcription.phrase:
                             continue
 
@@ -122,37 +135,38 @@ class Recorder:
     def stop_listening(self):
         self.wait_for_wake_word = True
 
-    def recognize(self, source: AudioSource, pause_threshold: float, ignore_noise: bool = False, timeout: Optional[float] = None) -> Transcription:
+    def recognize(self,
+                  source: AudioSource,
+                  pause_threshold: float,
+                  phrase_time_limit: Optional[float],
+                  timeout: Optional[float]) -> Transcription:
         self.recognizer.pause_threshold = pause_threshold
-
+        # self.recognizer.dynamic_energy_threshold = False
         audio_frames: list[bytes] = []
-        for audio_frame in self.recognizer.listen(source, timeout=timeout, stream=True):
+        for audio_frame in self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit, stream=True):
             audio_frames.append(audio_frame.frame_data)
         frame_data = b"".join(audio_frames)
         audio: AudioData = AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
 
         result = self.recognizer.recognize_whisper(
-            audio_data = audio, model=self.model, show_dict=True, load_options=None, language=self.language, translate=False,
-            condition_on_previous_text = False
+            audio_data=audio, model=self.model, show_dict=True, load_options=None, language=self.language, translate=False,
+            condition_on_previous_text=False
             # no_speech_threshold = None, logprob_threshold = None
         )
         if phrase := result["text"].strip():
-            ignored = False
-            no_speech_prob = result['segments'][0]["no_speech_prob"]
-            speech_prob = 1.0 - max(0.0, min(1.0, (no_speech_prob - 5e-12) / (5e-10 - 5e-12)))
-            speech_prob_threshold: float = 0.90
-            is_noise = speech_prob < speech_prob_threshold
-            if ignore_noise:
-                ignored = is_noise
+            no_speech_prob: float = result['segments'][0]["no_speech_prob"]
+            speech_prob: float = 1.0 - max(0.0, min(1.0, (no_speech_prob - 5e-12) / (5e-10 - 5e-12)))
+            is_noise: bool = speech_prob < 0.9
 
-            phrase_color = cli_bold_green if (not ignored and not is_noise) else (cli_bold_yellow if (not ignored and is_noise) else cli_bold_red)
-            speech_prob_color = cli_red if is_noise else cli_green
-            logger.info(f"phrase: {phrase_color}{phrase}{cli_color_reset} {speech_prob_color}({speech_prob=:.2f}){cli_color_reset}")
-            if not ignored and isinstance(audio, AudioData):
+            phrase_color: str = cli_bold_yellow if is_noise else cli_bold_green
+            speech_prob_color: str = cli_red if is_noise else cli_green
+            logger.info(
+                f"phrase: {phrase_color}{phrase}{cli_color_reset} {speech_prob_color}({speech_prob=:.2f}){cli_color_reset}")
+            if isinstance(audio, AudioData):
                 self.write_to_wav_file(phrase, audio)
-                return Transcription(is_noise, phrase)
+            return Transcription(phrase=phrase, is_noise=is_noise, speech_prob=speech_prob)
 
-        return Transcription(True, "")
+        return Transcription(phrase="", is_noise=True, speech_prob=0.0)
 
     def write_to_wav_file(self, transcript: str, data: AudioData):
         if not self.wav_output_dir:

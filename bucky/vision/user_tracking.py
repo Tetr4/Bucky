@@ -48,7 +48,7 @@ class UserTracker:
     def max_attention(self) -> float:
         with self._data_lock:
             if face := self.face_with_max_attention:
-                logger.info(f"max_attention={face.attention}")
+                logger.info(f"max_attention={face.attention:.2f}")
                 return face.attention
             return 0.0
 
@@ -134,6 +134,7 @@ class UserTracker:
                 break
             cv2.imshow(f"user tracking", camera_image)
             cv2.waitKey(1)
+
 
 # pdm run python -m bucky.vision.user_tracking
 if __name__ == "__main__":

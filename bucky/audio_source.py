@@ -4,16 +4,17 @@ import requests
 import threading
 import queue
 
+
 class HttpAudioSource(AudioSource):
-    def __init__(self, url, sample_size = 2, sample_rate = 44100, chunk_size = 8192):
+    def __init__(self, url, sample_size=2, sample_rate=44100, chunk_size=8192):
         self.url = url
         self.SAMPLE_WIDTH = sample_size
-        self.SAMPLE_RATE = sample_rate 
-        self.CHUNK = chunk_size 
+        self.SAMPLE_RATE = sample_rate
+        self.CHUNK = chunk_size
 
     def __enter__(self):
         self.stream = HttpAudioSource.HttpAudioStream(self.url, self.SAMPLE_WIDTH, self.SAMPLE_RATE)
-        
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.stream.close()
 
@@ -29,7 +30,8 @@ class HttpAudioSource(AudioSource):
             sample_rate = int.from_bytes(data[24:28], "little")
             bits_per_sample = int.from_bytes(data[34:36], "little")
             if channels != 1 or sample_rate != self.sample_rate or bits_per_sample / 8 != self.sample_size:
-                raise ValueError(f"Invalid audio format: Channels: {channels}, Sample Rate: {sample_rate}, Bits per Sample: {bits_per_sample}")
+                raise ValueError(
+                    f"Invalid audio format: Channels: {channels}, Sample Rate: {sample_rate}, Bits per Sample: {bits_per_sample}")
 
         def read(self, size):
             while True:
@@ -40,6 +42,7 @@ class HttpAudioSource(AudioSource):
 
         def close(self):
             self.response.close()
+
 
 class BufferedAudioSourceWrapper(AudioSource):
     def __init__(self, audio_source_factory: Callable[[], AudioSource]):
@@ -57,10 +60,10 @@ class BufferedAudioSourceWrapper(AudioSource):
             self.stream.put(samples)
 
     def __enter__(self):
-        self._instance: AudioSource =  self._source_factory()
+        self._instance: AudioSource = self._source_factory()
         self._instance.__enter__()
         self.SAMPLE_WIDTH = self._instance.SAMPLE_WIDTH
-        self.SAMPLE_RATE = self._instance.SAMPLE_RATE 
+        self.SAMPLE_RATE = self._instance.SAMPLE_RATE
         self.CHUNK = self._instance.CHUNK
         self._continue.set()
         self._thread = threading.Thread(target=self._read_proc, daemon=True)
