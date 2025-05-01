@@ -1,7 +1,7 @@
 from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
 from typing import Callable, NamedTuple, Optional
 from bucky.common.gpu_utils import get_free_cuda_device
-from bucky.audio_source import HttpAudioSource
+from bucky.audio_source import BufferedAudioSourceWrapper, HttpAudioSource
 from pathlib import Path
 import bucky.config as cfg
 import whisper
@@ -10,6 +10,14 @@ import wave
 import logging
 
 logger = logging.getLogger(__name__)
+cli_grey = "\x1b[38;20m"
+cli_red = "\x1b[31;20m"
+cli_green = "\x1b[32;20m"
+cli_bold_red = "\x1b[31;1m"
+cli_bold_green = "\x1b[32;1m"
+cli_bold_yellow = "\x1b[33;1m"
+cli_bold_blue = "\x1b[34;1m"
+cli_color_reset = "\x1b[0m"
 
 Transcription = NamedTuple("Transcription", [('is_noise', bool), ('phrase', str)])
 
@@ -70,18 +78,18 @@ class Recorder:
 
         last_wakeup_phrase: str = ""
 
-        while True:
-            if not self.wait_for_wake_word:
-                print("Listening...")
-                if is_complex_wakeup_phrase(last_wakeup_phrase):
-                    self.on_stop_listening()
-                    return last_wakeup_phrase
-                else:
-                    self.on_start_listening()
+        with BufferedAudioSourceWrapper(self.source_factory) as source:
+            while True:
+                if not self.wait_for_wake_word:
+                    logger.info(f"{cli_bold_green}Listening...{cli_color_reset}")
+                    if is_complex_wakeup_phrase(last_wakeup_phrase):
+                        self.on_stop_listening()
+                        return last_wakeup_phrase
+                    else:
+                        self.on_start_listening()
 
-                source = self.source_factory()
-                with source:
                     start = time.time()
+                    source.flush_stream()
                     while True:
                         try:
                             timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
@@ -94,15 +102,13 @@ class Recorder:
                             if not self.has_user_attention():
                                 break
 
-            self.wait_for_wake_word = False
+                self.wait_for_wake_word = False
 
-            if self.wakewords:
-                self.on_waiting_for_wakeup()
+                if self.wakewords:
+                    self.on_waiting_for_wakeup()
 
-                print("Waiting for Wakeword...")
-                
-                source = self.source_factory()
-                with source:
+                    logger.info(f"{cli_bold_yellow}Waiting for Wakeword...{cli_color_reset}")
+                    source.flush_stream()
                     while True:
                         transcription = self.recognize(source, pause_threshold=1.0, ignore_noise=False)
                         if not transcription.phrase:
@@ -118,7 +124,13 @@ class Recorder:
 
     def recognize(self, source: AudioSource, pause_threshold: float, ignore_noise: bool = False, timeout: Optional[float] = None) -> Transcription:
         self.recognizer.pause_threshold = pause_threshold
-        audio = self.recognizer.listen(source, timeout=timeout)
+
+        audio_frames: list[bytes] = []
+        for audio_frame in self.recognizer.listen(source, timeout=timeout, stream=True):
+            audio_frames.append(audio_frame.frame_data)
+        frame_data = b"".join(audio_frames)
+        audio: AudioData = AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
+
         result = self.recognizer.recognize_whisper(
             audio_data = audio, model=self.model, show_dict=True, load_options=None, language=self.language, translate=False,
             condition_on_previous_text = False
@@ -127,11 +139,15 @@ class Recorder:
         if phrase := result["text"].strip():
             ignored = False
             no_speech_prob = result['segments'][0]["no_speech_prob"]
-            no_speech_prob_threshold: float = 5e-11
-            is_noise = no_speech_prob > no_speech_prob_threshold
+            speech_prob = 1.0 - max(0.0, min(1.0, (no_speech_prob - 5e-12) / (5e-10 - 5e-12)))
+            speech_prob_threshold: float = 0.90
+            is_noise = speech_prob < speech_prob_threshold
             if ignore_noise:
                 ignored = is_noise
-            logger.info(f"phrase: {phrase}, ({no_speech_prob=}, {ignored=})")
+
+            phrase_color = cli_bold_green if (not ignored and not is_noise) else (cli_bold_yellow if (not ignored and is_noise) else cli_bold_red)
+            speech_prob_color = cli_red if is_noise else cli_green
+            logger.info(f"phrase: {phrase_color}{phrase}{cli_color_reset} {speech_prob_color}({speech_prob=:.2f}){cli_color_reset}")
             if not ignored and isinstance(audio, AudioData):
                 self.write_to_wav_file(phrase, audio)
                 return Transcription(is_noise, phrase)
