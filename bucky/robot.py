@@ -293,11 +293,33 @@ class BuckyBot(IRobot):
                 except Exception as error:
                     logger.error(error)
 
+            def get_camera_matrix(self, w: int, h: int) -> np.ndarray:
+                # Intrinsic camera matrix
+                K = np.array([[509.03709729, 0, 487.01091754],
+                              [0, 510.47051325, 410.00552861],
+                              [0, 0, 1]], dtype=np.float32)
+                scale_x = w / 1024
+                scale_y = h / 768
+                K[0, 0] *= scale_x  # Scale fx
+                K[0, 2] *= scale_x  # Scale cx
+                K[1, 1] *= scale_y  # Scale fy
+                K[1, 2] *= scale_y  # Scale cy
+                return K
+
+            def undistort(self, frame: np.ndarray) -> np.ndarray:
+                h, w = frame.shape[:2]
+                K = self.get_camera_matrix(w, h)
+                D = np.array([-3.28286122e-01, 1.32135416e-01,
+                              -1.09980142e-03, -1.49094943e-04,
+                              -2.59619213e-02], dtype=np.float32)
+                opt_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), 0.2, (w, h))
+                return cv2.undistort(frame, K, D, None, opt_K)
+
             def read(self) -> Optional[np.ndarray]:
                 if self._cam.isOpened():
                     ret, frame = self._cam.read()
                     if ret:
-                        return frame
+                        return self.undistort(frame)
                     logger.error(f"Capturing video image failed.")
                 else:
                     logger.error("Failed to open video stream.")

@@ -104,10 +104,10 @@ class UserTracker:
                     if not self._debug_mode:
                         continue
 
-                    mp_drawing.draw_landmarks(camera_image, face_landmarks,
-                                              mp_face_mesh.FACEMESH_TESSELATION,  # type: ignore
-                                              landmark_drawing_spec=self._debug_landmark_drawing_spec,
-                                              connection_drawing_spec=self._debug_connection_drawing_spec)
+                    # mp_drawing.draw_landmarks(camera_image, face_landmarks,
+                    #                           mp_face_mesh.FACEMESH_TESSELATION,  # type: ignore
+                    #                           landmark_drawing_spec=self._debug_landmark_drawing_spec,
+                    #                           connection_drawing_spec=self._debug_connection_drawing_spec)
 
                     col: ColorBGR = probability_to_color(face.attention)
                     face.draw(camera_image, col)
