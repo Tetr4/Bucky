@@ -1,5 +1,6 @@
 from datetime import datetime
 import logging
+from pathlib import Path
 import random
 from pytz import timezone
 from bucky.fx_player import FxPlayer
@@ -18,6 +19,7 @@ from bucky.robot import FakeBot, BuckyBot, IRobot
 from bucky.config import *
 from bucky.http_server import AgentStateHttpServer
 from bucky.audio_sink import robot_speaker, local_speaker
+from bucky.audio_filter import SpeechDenoiserDF, SpeechDenoiserNR
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,6 +103,8 @@ def main():
         wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],
         language="german",
         model="turbo",
+        denoiser=SpeechDenoiserDF(),
+        # wav_output_dir=Path("C:\\Temp"),
         audio_source_factory=mic,
         on_start_listening=on_start_listening,
         on_stop_listening=on_stop_listening,

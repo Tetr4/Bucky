@@ -1,6 +1,8 @@
+import pickle
 from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
 from typing import Callable, NamedTuple, Optional
 from bucky.common.gpu_utils import get_free_cuda_device
+from bucky.audio_filter import SpeechDenoiser
 from bucky.audio_source import BufferedAudioSourceWrapper, HttpAudioSource
 from pathlib import Path
 import bucky.config as cfg
@@ -30,6 +32,7 @@ class Recorder:
         language: str = "english",
         model: str = "base.en",
         audio_source_factory: Callable[[], AudioSource] = Microphone,
+        denoiser:  Optional[SpeechDenoiser] = None,
         wav_output_dir: Optional[Path] = None,
         on_start_listening: Callable = lambda: None,
         on_stop_listening: Callable = lambda: None,
@@ -52,7 +55,6 @@ class Recorder:
         self.has_user_attention: Callable[[], bool] = has_user_attention
 
         self.recognizer = Recognizer()
-        # self.recognizer.dynamic_energy_threshold = False
         self.wait_for_wake_word = True
 
         # get cuda device with 5GB free memory
@@ -67,6 +69,8 @@ class Recorder:
         self.recognizer.whisper_model = {self.model: whisper.load_model(
             self.model, device=torch_device, in_memory=True)}
 
+        self.denoiser = denoiser
+
     def listen(self) -> str:
         def contains_any_wakeword(phrase: str) -> bool:
             p = phrase.lower().replace(",", "")
@@ -80,7 +84,7 @@ class Recorder:
 
         last_wakeup_phrase: str = ""
 
-        with BufferedAudioSourceWrapper(self.source_factory) as source:
+        with BufferedAudioSourceWrapper(self.source_factory, self.denoiser) as source:
             while True:
                 if not self.wait_for_wake_word:
                     logger.info(f"{cli_bold_green}Listening...{cli_color_reset}")
@@ -96,8 +100,8 @@ class Recorder:
                         try:
                             timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
                             trans: Transcription = self.recognize(source,
-                                                                  pause_threshold=2.0,
-                                                                  phrase_time_limit=None,
+                                                                  pause_threshold=1.5,
+                                                                  phrase_time_limit=15.0,
                                                                   timeout=timeout)
                             if trans.phrase:
                                 if trans.is_noise:
@@ -141,17 +145,15 @@ class Recorder:
                   phrase_time_limit: Optional[float],
                   timeout: Optional[float]) -> Transcription:
         self.recognizer.pause_threshold = pause_threshold
-        # self.recognizer.dynamic_energy_threshold = False
-        audio_frames: list[bytes] = []
+        chunks: list[AudioData] = []
         for audio_frame in self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit, stream=True):
-            audio_frames.append(audio_frame.frame_data)
-        frame_data = b"".join(audio_frames)
+            chunks.append(audio_frame)
+        frame_data = b"".join(chunk.frame_data for chunk in chunks)
         audio: AudioData = AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
 
         result = self.recognizer.recognize_whisper(
             audio_data=audio, model=self.model, show_dict=True, load_options=None, language=self.language, translate=False,
             condition_on_previous_text=False
-            # no_speech_threshold = None, logprob_threshold = None
         )
         if phrase := result["text"].strip():
             no_speech_prob: float = result['segments'][0]["no_speech_prob"]
@@ -163,24 +165,30 @@ class Recorder:
             logger.info(
                 f"phrase: {phrase_color}{phrase}{cli_color_reset} {speech_prob_color}({speech_prob=:.2f}){cli_color_reset}")
             if isinstance(audio, AudioData):
-                self.write_to_wav_file(phrase, audio)
+                self.write_to_wav_file(phrase, audio, chunks)
             return Transcription(phrase=phrase, is_noise=is_noise, speech_prob=speech_prob)
 
         return Transcription(phrase="", is_noise=True, speech_prob=0.0)
 
-    def write_to_wav_file(self, transcript: str, data: AudioData):
+    def write_to_wav_file(self, transcript: str, data: AudioData, chunks: list[AudioData]):
         if not self.wav_output_dir:
             return
 
         text = "".join(x for x in transcript if x.isalnum() or x in [' '])
-        filename = self.wav_output_dir / Path(f"{int(time.time())}_{text}.wav")
+        filename = str(self.wav_output_dir / Path(f"{int(time.time())}_{text}"))
         try:
-            with wave.open(str(filename), 'w') as wav_file:
+            with wave.open(filename + ".wav", 'w') as wav_file:
                 wav_file.setnchannels(1)  # Mono
                 wav_file.setsampwidth(data.sample_width)
                 wav_file.setframerate(data.sample_rate)
                 wav_file.writeframesraw(data.frame_data)
         except Exception as e:
+            logger.error(f"An error occurred: {e}")
+
+        try:
+            with open(filename + ".pickle", "wb") as f:
+                pickle.dump(chunks, f)
+        except Exception as ex:
             logger.error(f"An error occurred: {e}")
 
 

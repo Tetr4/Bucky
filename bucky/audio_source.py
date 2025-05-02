@@ -1,8 +1,13 @@
+import time
 from typing import Callable, Optional
 from speech_recognition import AudioSource
+from bucky.audio_filter import SpeechDenoiser
 import requests
 import threading
 import queue
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class HttpAudioSource(AudioSource):
@@ -45,26 +50,27 @@ class HttpAudioSource(AudioSource):
 
 
 class BufferedAudioSourceWrapper(AudioSource):
-    def __init__(self, audio_source_factory: Callable[[], AudioSource]):
+    def __init__(self, audio_source_factory: Callable[[], AudioSource], denoiser: Optional[SpeechDenoiser] = None):
         self._source_factory = audio_source_factory
-        self._instance: Optional[AudioSource] = None
+        self._denoiser = denoiser
+        self._source: Optional[AudioSource] = None
         self._continue = threading.Event()
-        self.stream = BufferedAudioSourceWrapper.OutputStream()
 
     def flush_stream(self):
         self.stream.flush()
 
     def _read_proc(self):
         while self._continue.is_set():
-            samples = self._instance.stream.read(self.CHUNK)
-            self.stream.put(samples)
+            samples = self._source.stream.read(self.CHUNK)
+            self.stream.put(samples, self._source.SAMPLE_WIDTH, self._source.SAMPLE_RATE)
 
     def __enter__(self):
-        self._instance: AudioSource = self._source_factory()
-        self._instance.__enter__()
-        self.SAMPLE_WIDTH = self._instance.SAMPLE_WIDTH
-        self.SAMPLE_RATE = self._instance.SAMPLE_RATE
-        self.CHUNK = self._instance.CHUNK
+        self._source: AudioSource = self._source_factory()
+        self._source.__enter__()
+        self.SAMPLE_WIDTH = self._source.SAMPLE_WIDTH
+        self.SAMPLE_RATE = self._source.SAMPLE_RATE
+        self.CHUNK = self._source.CHUNK
+        self.stream = BufferedAudioSourceWrapper.OutputStream(self._denoiser)
         self._continue.set()
         self._thread = threading.Thread(target=self._read_proc, daemon=True)
         self._thread.start()
@@ -73,19 +79,37 @@ class BufferedAudioSourceWrapper(AudioSource):
     def __exit__(self, exc_type, exc_value, traceback):
         self._continue.clear()
         self._thread.join()
-        self._instance.__exit__(exc_type, exc_value, traceback)
+        self._source.__exit__(exc_type, exc_value, traceback)
 
     class OutputStream(object):
-        def __init__(self):
+        def __init__(self, denoiser: Optional[SpeechDenoiser]):
             self._sample_queue = queue.Queue()
+            self._denoiser = denoiser
+            self._avg_denoiser_ms = 0.0
 
-        def put(self, samples):
-            self._sample_queue.put(samples)
+        def put(self, samples: bytes, sample_width: int, sampe_rate: int):
+            self._sample_queue.put((samples, sample_width, sampe_rate))
 
         def flush(self):
             self._sample_queue = queue.Queue()
 
-        def read(self, size):
-            result = self._sample_queue.get()
+        def read(self, size) -> bytes:
+            samples, sample_width, sampe_rate = self._sample_queue.get()
             self._sample_queue.task_done()
-            return result
+            if self._denoiser is None:
+                return samples
+
+            denoiser_start: float = time.time()
+            denoised_samples = self._denoiser.denoise(samples, sample_width, sampe_rate)
+            denoiser_ms: float = (time.time() - denoiser_start) * 1000
+
+            if len(denoised_samples) != len(samples):
+                logger.error(
+                    f"Denoiser returned {len(denoised_samples)/sample_width} samples from {len(samples)/sample_width} input samples.")
+
+            self._avg_denoiser_ms = 0.99 * self._avg_denoiser_ms + 0.01 * denoiser_ms
+            samples_ms: float = (len(samples) / (sample_width * sampe_rate)) * 1000
+            if self._avg_denoiser_ms > samples_ms:
+                logger.warning(f"Denoiser took {int(self._avg_denoiser_ms)} ms for a {int(samples_ms)} ms sample.")
+
+            return denoised_samples

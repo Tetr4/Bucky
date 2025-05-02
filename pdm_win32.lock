@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:107e43a088a92d1685039b92c1feaf093651445e0ea4330ad4cad3fbe19e4925"
+content_hash = "sha256:a866a4e22f985d3f47d84ff2328f8ce4b0ae6b6a2b1d7a5406311ac0d52961c6"
 
 [[metadata.targets]]
 requires_python = "==3.11.*"
@@ -122,6 +122,16 @@ dependencies = [
 files = [
     {file = "anyio-4.9.0-py3-none-any.whl", hash = "sha256:9f76d541cad6e36af7beb62e978876f3b41e3e04f2c1fbf0884604c0a9c4d93c"},
     {file = "anyio-4.9.0.tar.gz", hash = "sha256:673c0c244e15788651a4ff38710fea9675823028a6f08a5eda409e0c9840a028"},
+]
+
+[[package]]
+name = "appdirs"
+version = "1.4.4"
+summary = "A small Python module for determining appropriate platform-specific dirs, e.g. a \"user data dir\"."
+groups = ["default"]
+files = [
+    {file = "appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128"},
+    {file = "appdirs-1.4.4.tar.gz", hash = "sha256:7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41"},
 ]
 
 [[package]]
@@ -288,7 +298,7 @@ version = "0.4.6"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 summary = "Cross-platform colored terminal text."
 groups = ["default"]
-marker = "sys_platform == \"win32\" and python_version >= \"3.7\" or platform_system == \"Windows\""
+marker = "sys_platform == \"win32\" or platform_system == \"Windows\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -514,6 +524,44 @@ groups = ["default"]
 files = [
     {file = "decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a"},
     {file = "decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360"},
+]
+
+[[package]]
+name = "deepfilterlib"
+version = "0.5.6"
+requires_python = ">=3.8"
+summary = ""
+groups = ["default"]
+dependencies = [
+    "numpy>=1.22",
+]
+files = [
+    {file = "DeepFilterLib-0.5.6-cp311-cp311-macosx_10_7_x86_64.whl", hash = "sha256:b92ccbffa5b8bbd2bae47eef288bc3504f86a65e57cf7ae271ebdf0f137e728a"},
+    {file = "DeepFilterLib-0.5.6-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:d27f5d2c4f41d49b52e8f6a7bf62521d3d78d2cf513e75e062f60ef799d94834"},
+    {file = "DeepFilterLib-0.5.6-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:87b58093ab6e8379306e6ae330374856ee62e1cf7893cfbfb094177db478a850"},
+    {file = "DeepFilterLib-0.5.6-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:3ea0dffa9b0f0fae4aaebac4a3d13f9b2ba5becd805db1b14d2252163f07e787"},
+    {file = "DeepFilterLib-0.5.6-cp311-none-win_amd64.whl", hash = "sha256:e53fa759448dbee8ad7ad10d3313bbd8ca80e6989542f6971b95693de500cebf"},
+    {file = "DeepFilterLib-0.5.6.tar.gz", hash = "sha256:38fa2334c5b19385ca1f747ca9636f8016119005b3a12046d56ddc054a3807e5"},
+]
+
+[[package]]
+name = "deepfilternet"
+version = "0.5.6"
+requires_python = ">=3.8,<4.0"
+summary = "Noise supression using deep filtering"
+groups = ["default"]
+dependencies = [
+    "appdirs<2.0,>=1.4",
+    "deepfilterlib==0.5.6",
+    "loguru>=0.5",
+    "numpy<2.0,>=1.22",
+    "packaging<24.0,>=23.0",
+    "requests<3.0,>=2.27",
+    "sympy>=1.6",
+]
+files = [
+    {file = "deepfilternet-0.5.6-py3-none-any.whl", hash = "sha256:99f5688d954fcfa8f853bf8bb8c3b2a59e4f9dc5d95643c9e6a32053234ba7c6"},
+    {file = "deepfilternet-0.5.6.tar.gz", hash = "sha256:2e64f58cf6b346cf64bd9bd83fcc97452604aa398adf161d23bcbadc5fd6d16c"},
 ]
 
 [[package]]
@@ -1286,6 +1334,22 @@ files = [
 ]
 
 [[package]]
+name = "loguru"
+version = "0.7.3"
+requires_python = "<4.0,>=3.5"
+summary = "Python logging made (stupidly) simple"
+groups = ["default"]
+dependencies = [
+    "aiocontextvars>=0.2.0; python_version < \"3.7\"",
+    "colorama>=0.3.4; sys_platform == \"win32\"",
+    "win32-setctime>=1.0.0; sys_platform == \"win32\"",
+]
+files = [
+    {file = "loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c"},
+    {file = "loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6"},
+]
+
+[[package]]
 name = "marisa-trie"
 version = "1.2.1"
 requires_python = ">=3.7"
@@ -1589,6 +1653,23 @@ groups = ["default"]
 files = [
     {file = "networkx-3.4.2-py3-none-any.whl", hash = "sha256:df5d4365b724cf81b8c6a7312509d0c22386097011ad1abe274afd5e9d3bbc5f"},
     {file = "networkx-3.4.2.tar.gz", hash = "sha256:307c3669428c5362aab27c8a1260aa8f47c4e91d3891f48be0141738d8d053e1"},
+]
+
+[[package]]
+name = "noisereduce"
+version = "3.0.3"
+summary = "Noise reduction using Spectral Gating in Python"
+groups = ["default"]
+dependencies = [
+    "joblib",
+    "matplotlib",
+    "numpy",
+    "scipy",
+    "tqdm",
+]
+files = [
+    {file = "noisereduce-3.0.3-py3-none-any.whl", hash = "sha256:95cb64cfe29b5fa0311ac764755d2f503ae71571040693577796412be1a54b9d"},
+    {file = "noisereduce-3.0.3.tar.gz", hash = "sha256:ff64a28fb92e3c81f153cf29550e5c2db56b2523afa8f56f5e03c177cc5e918f"},
 ]
 
 [[package]]
@@ -2013,13 +2094,13 @@ files = [
 
 [[package]]
 name = "packaging"
-version = "24.2"
-requires_python = ">=3.8"
+version = "23.2"
+requires_python = ">=3.7"
 summary = "Core utilities for Python packages"
 groups = ["default"]
 files = [
-    {file = "packaging-24.2-py3-none-any.whl", hash = "sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759"},
-    {file = "packaging-24.2.tar.gz", hash = "sha256:c228a6dc5e932d346bc5739379109d49e8853dd8223571c7c5b55260edc0b97f"},
+    {file = "packaging-23.2-py3-none-any.whl", hash = "sha256:8c491190033a9af7e1d931d0b5dacc2ef47509b34dd0de67ed209b5203fc88c7"},
+    {file = "packaging-23.2.tar.gz", hash = "sha256:048fb0e9405036518eaaf48a55953c750c11e1a1b68e0dd1a9d62ed0c092cfc5"},
 ]
 
 [[package]]
@@ -3230,6 +3311,18 @@ dependencies = [
 files = [
     {file = "werkzeug-3.1.3-py3-none-any.whl", hash = "sha256:54b78bf3716d19a65be4fceccc0d1d7b89e608834989dfae50ea87564639213e"},
     {file = "werkzeug-3.1.3.tar.gz", hash = "sha256:60723ce945c19328679790e3282cc758aa4a6040e4bb330f53d30fa546d44746"},
+]
+
+[[package]]
+name = "win32-setctime"
+version = "1.2.0"
+requires_python = ">=3.5"
+summary = "A small Python utility to set file creation time on Windows"
+groups = ["default"]
+marker = "sys_platform == \"win32\""
+files = [
+    {file = "win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390"},
+    {file = "win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0"},
 ]
 
 [[package]]
