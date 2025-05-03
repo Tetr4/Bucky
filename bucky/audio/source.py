@@ -1,7 +1,8 @@
 import time
 from typing import Callable, Optional
-from speech_recognition import AudioSource
-from bucky.audio_filter import SpeechDenoiser
+from speech_recognition import AudioSource, Microphone
+from bucky.audio.filter import SpeechDenoiser
+import bucky.config as cfg
 import requests
 import threading
 import queue
@@ -113,3 +114,11 @@ class BufferedAudioSourceWrapper(AudioSource):
                 logger.warning(f"Denoiser took {int(self._avg_denoiser_ms)} ms for a {int(samples_ms)} ms sample.")
 
             return denoised_samples
+
+
+def robot_mic():
+    return HttpAudioSource(f"{cfg.bucky_uri}/mic", chunk_size=1024)
+
+
+def local_mic():
+    return Microphone()

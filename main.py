@@ -14,12 +14,13 @@ from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
 from bucky.agent import Agent
 from bucky.vision.user_tracking import UserTracker
-from bucky.voices import Voice, VoiceFast, VoiceQualityLowLatency
-from bucky.recorder import Recorder, Transcription, robot_mic, local_mic
+from bucky.voice import Voice
+from bucky.recorder import Recorder, Transcription
 from bucky.robot import FakeBot, BuckyBot, IRobot
 from bucky.http_server import AgentStateHttpServer
-from bucky.audio_sink import robot_speaker, local_speaker
-from bucky.audio_filter import SpeechDenoiserDF, SpeechDenoiserNR
+from bucky.audio.source import robot_mic, local_mic
+from bucky.audio.sink import robot_speaker, local_speaker
+from bucky.audio.filter import SpeechDenoiserDF, SpeechDenoiserNR
 import bucky.config as cfg
 
 logging.basicConfig(level=logging.INFO)
@@ -60,8 +61,7 @@ def main():
 
     fx_player = FxPlayer(speaker)
 
-    # voice: Voice = VoiceFast(model='de_DE-thorsten-high', audio_sink_factory=speaker)
-    voice: Voice = VoiceQualityLowLatency(
+    voice = Voice(
         audio_sink_factory=speaker,
         pre_cached_phrases=greeting_phrases + question_phrases,
         language="de",

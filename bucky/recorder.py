@@ -2,8 +2,8 @@ import pickle
 from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
 from typing import Callable, NamedTuple, Optional
 from bucky.common.gpu_utils import get_free_cuda_device
-from bucky.audio_filter import SpeechDenoiser
-from bucky.audio_source import BufferedAudioSourceWrapper, HttpAudioSource
+from bucky.audio.filter import SpeechDenoiser
+from bucky.audio.source import BufferedAudioSourceWrapper, HttpAudioSource
 from pathlib import Path
 import bucky.config as cfg
 import whisper
@@ -188,19 +188,5 @@ class Recorder:
         try:
             with open(filename + ".pickle", "wb") as f:
                 pickle.dump(chunks, f)
-        except Exception as ex:
+        except Exception as e:
             logger.error(f"An error occurred: {e}")
-
-
-def robot_mic():
-    return HttpAudioSource(f"{cfg.bucky_uri}/mic", chunk_size=1024)
-
-
-def local_mic():
-    return Microphone()
-
-
-if __name__ == "__main__":
-    rec = Recorder(audio_source_factory=robot_mic)
-    while True:
-        print(rec.listen())
