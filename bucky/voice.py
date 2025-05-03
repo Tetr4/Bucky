@@ -12,8 +12,10 @@ import pickle
 import os
 import logging
 from bucky.common.gpu_utils import get_free_cuda_device
-from bucky.voices.voice import Voice, voice_data_dir
 from rich.progress import Progress
+
+
+voice_data_dir = "assets/voice-data"
 
 if TYPE_CHECKING:
     from TTS.utils.synthesizer import Synthesizer
@@ -36,7 +38,7 @@ else:
 logger = logging.getLogger(__name__)
 
 
-class VoiceQualityLowLatency(Voice):
+class Voice:
     def __init__(self,
                  language: str = "en",
                  voice_template: Path = Path(voice_data_dir, "voice_template.wav"),

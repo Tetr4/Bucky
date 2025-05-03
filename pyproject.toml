@@ -6,8 +6,6 @@ dependencies = [
     "langgraph>=0.2.59",
     "pytz>=2024.2",
     "sounddevice>=0.5.1",
-    "piper-tts>=1.2.0",
-    "piper-phonemize>=1.2.1",
     "requests>=2.32.3",
     "SpeechRecognition==3.12.0",
     "openai-whisper>=20240930",
@@ -24,10 +22,6 @@ dependencies = [
 requires-python = "==3.11.*"
 readme = "README.md"
 license = {text = "MIT"}
-
-[tool.pdm.resolution.overrides]
-# Workaround because there are no current release for MacOS: https://github.com/rhasspy/piper/issues/217
-piper-phonemize = "https://files.pythonhosted.org/packages/97/82/d13e77080127fc0f7a89d5ca9640493c2efbf00ee766b724c14cb5624888/piper_phonemize_cross-1.2.1-cp311-cp311-macosx_11_0_arm64.whl"
 
 [tool.pdm.scripts]
 start = "main.py"

@@ -12,7 +12,7 @@
 - Optional: Create or update the lock file:
     - Mac-Arm64: `pdm lock`
     - Windows: `pdm lock --override win_overrides.txt --lockfile pdm_win32.lock`
-    - Linux: `pdm lock --override linux_overrides.txt --lockfile pdm_linux.lock`
+    - Linux: `pdm lock --lockfile pdm_linux.lock`
 - Install packages from existing lock file:
     - Mac-Arm64: `pdm sync --dev --clean`
     - Windows: `pdm sync --lockfile pdm_win32.lock --dev --clean`
@@ -20,7 +20,7 @@
 - To add new packages to the project:
     - Mac-Arm64: `pdm add <mypackage>`
     - Windows: `pdm add <mypackage> --override win_overrides.txt --lockfile pdm_win32.lock`
-    - Linux: `pdm add <mypackage> --override linux_overrides.txt --lockfile pdm_linux.lock`
+    - Linux: `pdm add <mypackage> --lockfile pdm_linux.lock`
 - VSCode: Run `Python: Select Interpreter` and select the newly created environment
 
 # Commands

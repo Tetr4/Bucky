@@ -13,7 +13,7 @@ from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from bucky.common.message_utils import has_image_data
 from bucky.recorder import Recorder
-from bucky.voices.voice import Voice
+from bucky.voice import Voice
 
 
 class State(TypedDict):
