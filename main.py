@@ -8,7 +8,7 @@ from bucky.fx_player import FxPlayer
 from bucky.memory_store import MemoryStore
 from bucky.tools.emote import EmoteTool
 from bucky.tools.memory import CreateMemoryTool, UpdateMemoryTool, DeleteMemoryTool
-from bucky.tools.movement import TurnTowardsUserTool
+from bucky.tools.movement import TurnTool
 from bucky.tools.utility import get_current_time, TakeImageTool, EndConversationTool
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.timer import TimerTool
@@ -28,19 +28,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 system_prompt_template = """
-Voice: Talk like a friendly and funny cowboy. Keep your answers very short and always stay in character, i.e. do not mention function calls to the user. Always answer in german.
-Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
-Important! Always answer in German! Don't use emojis!
-Important! If possible, turn towards the user until he is in front of you.
+You are an intelligent control system for a four-wheeled ground robot.
 
-Current time is: {current_time}
-Current location: Braunschweig in Germany
-User attention: {user_attention}
+Instructions:
+- Talk like a friendly and funny cowboy.
+- Keep your answers very short.
+- Always stay in character. I.e. do not mention function calls or that you are a robot to the user.
+- Always answer in german.
+- Use the emote tool a lot instead of printing emojis in text.
+- Use the take_image tool to see what is going on.
+- Use the fact tools to remember new facts. Otherwise this information will be gone on system reboot.
+
+Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
+
+System status:
+- Current time is: {current_time}
+- Current location: Braunschweig in Germany
 
 This is your long term memory of facts:
 {memories}
-
-Use tools to remember new facts. This information will be gone otherwise!
 """.strip()
 
 greeting_phrases = ["Howdy Partner!", "Howdy!", "Moin!"]
@@ -104,7 +110,7 @@ def main():
         wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],
         language="german",
         model="turbo",
-        denoiser=SpeechDenoiserNR(),
+        denoiser=SpeechDenoiserDF(),
         audio_source_factory=mic,
         on_start_listening=on_start_listening,
         on_stop_listening=on_stop_listening,
@@ -118,7 +124,7 @@ def main():
         TakeImageTool(robot),
         EndConversationTool(recorder.stop_listening),
         EmoteTool(robot),
-        TurnTowardsUserTool(robot, tracker),
+        TurnTool(robot, tracker),
         get_weather_forecast,
         # get_random_meal,
         # search_meal_by_ingredient,
@@ -142,7 +148,6 @@ def main():
         return system_prompt_template.format(
             memories=memories,
             current_time=now,
-            user_attention=f"{int(tracker.max_attention * 100)}%"
         )
 
     agent.system_prompt_format_callback = get_formatted_system_prompt

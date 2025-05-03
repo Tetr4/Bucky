@@ -92,15 +92,15 @@ class Recorder:
                         self.on_stop_listening()
                         return last_wakeup_phrase
                     else:
+                        source.flush_stream()
                         self.on_start_listening()
 
                     start = time.time()
-                    source.flush_stream()
                     while True:
                         try:
                             timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
                             trans: Transcription = self.recognize(source,
-                                                                  pause_threshold=1.5,
+                                                                  pause_threshold=2.0,
                                                                   phrase_time_limit=15.0,
                                                                   timeout=timeout)
                             if trans.phrase:

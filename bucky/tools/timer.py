@@ -14,7 +14,7 @@ class TimerToolInput(BaseModel):
 
 class TimerTool(BaseTool):
     name: str = "timer"
-    description: str = "Use this set a timer that plays an alarm after duration expired."
+    description: str = "Use this to set a timer that plays an alarm after the duration expired."
     args_schema: Type[BaseModel] = TimerToolInput  # type: ignore
     fx_player: Optional[FxPlayer] = None
 
@@ -40,7 +40,7 @@ class TimerTool(BaseTool):
             while True:
                 eta = alarm_time - time.time()
                 print("Alarm in", round(max(0.0, eta)), "seconds ...")
-                time.sleep(min(5.0, eta))
+                time.sleep(min(5.0 if eta > 10 else 1.0, eta))
                 if time.time() >= alarm_time:
                     print("Alarm!")
                     assert self.fx_player
