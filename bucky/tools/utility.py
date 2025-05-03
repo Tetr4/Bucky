@@ -38,4 +38,4 @@ class EndConversationTool(BaseTool):
 
     def _run(self) -> str:
         self.on_end_conversation()
-        return "conversion ended"
+        return "conversion ended, say bye in just a few words"
