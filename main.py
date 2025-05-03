@@ -70,7 +70,7 @@ def main():
 
     memory_store = MemoryStore("memory.db")
 
-    tracker = UserTracker(cam_stream_factory=robot.open_camera_stream, max_num_faces=2, debug_mode=True)
+    tracker = UserTracker(cam_stream_factory=robot.open_camera_stream, max_num_faces=2, debug_mode=False)
     tracker.start()
 
     def on_start_listening():
@@ -102,7 +102,7 @@ def main():
         wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],
         language="german",
         model="turbo",
-        denoiser=SpeechDenoiserDF(),
+        denoiser=SpeechDenoiserNR(),
         audio_source_factory=mic,
         on_start_listening=on_start_listening,
         on_stop_listening=on_stop_listening,

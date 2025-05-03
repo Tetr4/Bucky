@@ -81,7 +81,7 @@ class SpeechDenoiserNR(SpeechDenoiser[np.ndarray]):
         return nr.reduce_noise(y=noisy_data,
                                sr=sample_rate,
                                stationary=True,
-                               use_torch=True,
+                               use_torch=torch.cuda.is_available(),
                                n_fft=min(1024, len(noisy_data)))
 
     def _get_denoised_slice(self, denoised_samples: np.ndarray, start_idx: int, end_idx: Optional[int]) -> bytes:
