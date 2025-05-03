@@ -86,8 +86,10 @@ class UserTracker:
                     with self._data_lock:
                         camera_image = cam_stream.read()
                         if camera_image is not None:
+                            start: float = time.time()
                             self._update(camera_image)
-                            time.sleep(0.001)
+                            dt: float = time.time() - start
+                            time.sleep(max(0.0, 30/1000 - dt))
                             continue
                     time.sleep(3.0)
                     break

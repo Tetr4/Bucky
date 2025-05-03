@@ -103,7 +103,7 @@ class SpeechDenoiserDF(SpeechDenoiser[torch.Tensor]):
     def _convert_samples(self, samples: bytes) -> torch.Tensor:
         return torch.frombuffer(samples, dtype=torch.int16).to(torch.float32) / (1 << 15)
 
-    def _denoise_chunk_buffer(self, chunk_buffer: list[np.ndarray], sample_rate: int) -> torch.Tensor:
+    def _denoise_chunk_buffer(self, chunk_buffer: list[torch.Tensor], sample_rate: int) -> torch.Tensor:
         from torchaudio.functional import resample
         from df.enhance import enhance
         full_input_tensor: torch.Tensor = torch.cat(chunk_buffer, dim=0)
