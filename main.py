@@ -2,6 +2,7 @@ from datetime import datetime
 import logging
 from pathlib import Path
 import random
+from langchain_ollama import ChatOllama
 from pytz import timezone
 from bucky.fx_player import FxPlayer
 from bucky.memory_store import MemoryStore
@@ -11,22 +12,19 @@ from bucky.tools.movement import TurnTowardsUserTool
 from bucky.tools.utility import get_current_time, TakeImageTool, EndConversationTool
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.weather import get_weather_forecast
-from bucky.agent import Agent, preload_ollama_model
+from bucky.agent import Agent
 from bucky.vision.user_tracking import UserTracker
 from bucky.voices import Voice, VoiceFast, VoiceQualityLowLatency
 from bucky.recorder import Recorder, Transcription, robot_mic, local_mic
 from bucky.robot import FakeBot, BuckyBot, IRobot
-from bucky.config import *
 from bucky.http_server import AgentStateHttpServer
 from bucky.audio_sink import robot_speaker, local_speaker
 from bucky.audio_filter import SpeechDenoiserDF, SpeechDenoiserNR
+import bucky.config as cfg
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-# "llama3.2-vision-tools:11b" # "llama3.1:8b"  # "llama3.2-vision-tools:11b"
-llm = "PetrosStav/gemma3-tools:27b"  # "mistral-small3.1"
 system_prompt_template = """
 Voice: Talk like a friendly and funny cowboy. Keep your answers very short and always stay in character, i.e. do not mention function calls to the user. Always answer in german.
 Backstory: Your name is Bucky. You were born into a family of ranchers in rural Texas. Growing up on the vast open spaces around your family's land, you developed a deep love for horses and learned to ride at an early age. You are known for your rugged individualism, unwavering optimism, and strong sense of justice.
@@ -43,35 +41,36 @@ This is your long term memory of facts:
 Use tools to remember new facts. This information will be gone otherwise!
 """.strip()
 
-robot: IRobot = FakeBot()
-# robot: IRobot = BuckyBot(bucky_uri)
-
-speaker = local_speaker
-mic = local_mic
-# speaker = robot_speaker
-# mic = robot_mic
+greeting_phrases = ["Howdy Partner!", "Howdy!", "Moin!"]
+question_phrases = ["was?", "wie?", "was hast du gesagt?", "hab dich nicht verstanden"]
 
 
 def main():
+    # robot: IRobot = BuckyBot(bucky_uri)
+    # speaker = robot_speaker
+    # mic = robot_mic
+    robot: IRobot = FakeBot()
+    speaker = local_speaker
+    mic = local_mic
+
+    llm = ChatOllama(base_url=cfg.ollama_url, model=cfg.model, keep_alive=-1)
     # Preloading the Ollama model before the voice and the recorder
     # to increase the chances that the whole model fits into GPU memory.
-    preload_ollama_model(llm)
+    llm.invoke(".")
 
     fx_player = FxPlayer(speaker)
 
-    greeting_phrases = ["Howdy Partner!", "Howdy!", "Moin!"]
-    question_phrases = ["was?", "wie?", "was hast du gesagt?", "hab dich nicht verstanden"]
-
     # voice: Voice = VoiceFast(model='de_DE-thorsten-high', audio_sink_factory=speaker)
-    voice: Voice = VoiceQualityLowLatency(audio_sink_factory=speaker,
-                                          pre_cached_phrases=greeting_phrases + question_phrases,
-                                          language="de",
-                                          chunk_size_in_seconds=1.5)
+    voice: Voice = VoiceQualityLowLatency(
+        audio_sink_factory=speaker,
+        pre_cached_phrases=greeting_phrases + question_phrases,
+        language="de",
+        chunk_size_in_seconds=1.5
+    )
 
     memory_store = MemoryStore("memory.db")
 
-    tracker = UserTracker(cam_stream_factory=robot.open_camera_stream,
-                          max_num_faces=2, debug_mode=True)
+    tracker = UserTracker(cam_stream_factory=robot.open_camera_stream, max_num_faces=2, debug_mode=True)
     tracker.start()
 
     def on_start_listening():
@@ -104,7 +103,6 @@ def main():
         language="german",
         model="turbo",
         denoiser=SpeechDenoiserDF(),
-        # wav_output_dir=Path("C:\\Temp"),
         audio_source_factory=mic,
         on_start_listening=on_start_listening,
         on_stop_listening=on_stop_listening,
@@ -128,7 +126,7 @@ def main():
     ]
 
     agent = Agent(
-        model=llm,
+        llm=llm,
         system_prompt_template=system_prompt_template,
         tools=tools,
         voice=voice,  # Optional
@@ -138,9 +136,11 @@ def main():
     def get_formatted_system_prompt(system_prompt_template: str) -> str:
         memories: dict[str, str] = memory_store.dump()
         now = datetime.now().astimezone(timezone("Europe/Berlin")).isoformat()
-        return system_prompt_template.format(memories=memories,
-                                             current_time=now,
-                                             user_attention=f"{int(tracker.max_attention * 100)}%")
+        return system_prompt_template.format(
+            memories=memories,
+            current_time=now,
+            user_attention=f"{int(tracker.max_attention * 100)}%"
+        )
 
     agent.system_prompt_format_callback = get_formatted_system_prompt
 

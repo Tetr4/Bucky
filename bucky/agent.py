@@ -1,6 +1,7 @@
 from typing import Callable, Literal, Optional, Annotated
 from typing_extensions import TypedDict
 from langchain_core.runnables import RunnableConfig
+from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage, RemoveMessage
 from langchain_core.messages.base import get_msg_title_repr
@@ -22,7 +23,7 @@ class State(TypedDict):
 class Agent:
     def __init__(
             self,
-            model: str,
+            llm: BaseChatModel,
             system_prompt_template: str,
             tools: list[BaseTool],
             voice: Voice | None = None,
@@ -31,7 +32,7 @@ class Agent:
         self.system_prompt_template = system_prompt_template
         self.tools = tools
         self.voice = voice
-        self.llm = ChatOllama(model=model, keep_alive=-1).bind_tools(tools)
+        self.llm = llm.bind_tools(tools)
         self.graph = self._create_graph()
         self.recorder = recorder
         self.system_prompt_format_callback: Optional[Callable[[str], str]] = None
@@ -136,7 +137,3 @@ class Agent:
             message.pretty_print()
         else:
             print(get_msg_title_repr(message.type.title() + " Message"))
-
-
-def preload_ollama_model(model: str):
-    ChatOllama(model=model, keep_alive=-1).invoke(".")

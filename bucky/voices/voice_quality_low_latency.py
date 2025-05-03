@@ -22,10 +22,13 @@ if TYPE_CHECKING:
 else:
     class TTS:
         ...
+
     class Synthesizer:
         ...
+
     class Xtts:
         ...
+
     class XttsConfig:
         ...
 
@@ -83,11 +86,15 @@ class VoiceQualityLowLatency(Voice):
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
         logger.info("XTTS: loading ...")
         from TTS.api import TTS
-        
+
         if cuda_device := get_free_cuda_device(2 * (1024**3)):
             logger.info(f"XTTS: creating GPU instance {cuda_device}")
             self.tts = TTS(model_name=model, progress_bar=False).to(
                 cuda_device.torch_device, dtype=torch.float, non_blocking=True)
+        elif torch.backends.mps.is_available():
+            logger.info(f"XTTS: creating MPS instance")
+            self.tts = TTS(model_name=model, progress_bar=False).to(
+                torch.device("mps"))
         else:
             logger.info("XTTS: creating CPU instance")
             self.tts = TTS(model_name=model, progress_bar=False)
@@ -99,7 +106,7 @@ class VoiceQualityLowLatency(Voice):
             gpt_cond_chunk_len=cfg.gpt_cond_chunk_len,
             max_ref_length=cfg.max_ref_len,
             sound_norm_refs=cfg.sound_norm_refs)
-        
+
         logger.info("XTTS: ready")
 
     def _adjust_dynamic_speed(self, inference_duration: float, total_audio_duration: float):
@@ -251,7 +258,6 @@ class VoiceQualityLowLatency(Voice):
             except Exception as ex:
                 logger.error(ex)
 
-        
         additional_variants: int = 3
         for phrase in pre_cached_phrases:
             if waves := try_get_from_cache(phrase):
