@@ -96,6 +96,7 @@ class FakeBot(IRobot):
                     self._cam_resolution = (width, height)
                     self._cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
                     self._cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                    time.sleep(0.2)  # wait for camera to adjust to lighting
 
                 if self._cam.isOpened():
                     ret, frame = self._cam.read()
