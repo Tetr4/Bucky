@@ -11,6 +11,7 @@ from bucky.tools.memory import CreateMemoryTool, UpdateMemoryTool, DeleteMemoryT
 from bucky.tools.movement import TurnTowardsUserTool
 from bucky.tools.utility import get_current_time, TakeImageTool, EndConversationTool
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
+from bucky.tools.timer import TimerTool
 from bucky.tools.weather import get_weather_forecast
 from bucky.agent import Agent
 from bucky.vision.user_tracking import UserTracker
@@ -47,12 +48,13 @@ question_phrases = ["was?", "wie?", "was hast du gesagt?", "hab dich nicht verst
 
 
 def main():
-    # robot: IRobot = BuckyBot(bucky_uri)
-    # speaker = robot_speaker
-    # mic = robot_mic
     robot: IRobot = FakeBot()
     speaker = local_speaker
     mic = local_mic
+
+    # robot: IRobot = BuckyBot(cfg.bucky_uri)
+    # speaker = robot_speaker
+    # mic = robot_mic
 
     llm = ChatOllama(base_url=cfg.ollama_url, model=cfg.model, keep_alive=-1)
     # Preloading the Ollama model before the voice and the recorder
@@ -123,6 +125,7 @@ def main():
         CreateMemoryTool(memory_store),
         UpdateMemoryTool(memory_store),
         DeleteMemoryTool(memory_store),
+        TimerTool(fx_player),
     ]
 
     agent = Agent(

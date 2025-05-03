@@ -20,12 +20,16 @@ class FxPlayer:
         self.audio_sink_factory = audio_sink_factory
         self._rising_chime = self._load_wave_file(os.path.join(effects_dir, "chime-rising.wav"))
         self._descending_chime = self._load_wave_file(os.path.join(effects_dir, "chime-descending.wav"))
+        self._timer_alarm = self._load_wave_file(os.path.join(effects_dir, "timer-alarm.wav"))
 
     def play_rising_chime(self) -> threading.Thread:
         return self._play(self._rising_chime)
 
     def play_descending_chime(self) -> threading.Thread:
         return self._play(self._descending_chime)
+
+    def play_timer_alarm(self) -> threading.Thread:
+        return self._play(self._timer_alarm)
 
     def _load_wave_file(self, file_path: str) -> WaveInfo:
         with wave.open(file_path, "rb") as wf:
