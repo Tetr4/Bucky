@@ -3,5 +3,7 @@
     "editor.defaultFormatter": "ms-python.autopep8",
     "autopep8.args": [
         "--max-line-length", "120"
-    ]
+    ],
+    "python.analysis.typeCheckingMode": "standard",
+    "python.analysis.diagnosticMode": "workspace"
 }

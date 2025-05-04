@@ -1,5 +1,6 @@
 # from langgraph.store.memory import InMemoryStore
 import sqlite3
+from typing import Optional
 
 
 class MemoryStore:
@@ -29,6 +30,15 @@ class MemoryStore:
                 )
             """, (memory, memory))
             conn.commit()
+
+    def try_get(self, id: str) -> Optional[str]:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM memory_store WHERE id = ?", (id,))
+            rows = cursor.fetchall()
+            if len(rows) > 0:
+                return rows[0][0]
+            return None
 
     def update(self, id: str, new_memory: str):
         with sqlite3.connect(self.db_path) as conn:

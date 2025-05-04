@@ -61,16 +61,16 @@ class BufferedAudioSourceWrapper(AudioSource):
         self.stream.flush()
 
     def _read_proc(self):
-        while self._continue.is_set():
-            samples = self._source.stream.read(self.CHUNK)
-            self.stream.put(samples, self._source.SAMPLE_WIDTH, self._source.SAMPLE_RATE)
+        while self._continue.is_set() and self._source is not None:
+            samples = self._source.stream.read(self.CHUNK)  # type: ignore
+            self.stream.put(samples, self._source.SAMPLE_WIDTH, self._source.SAMPLE_RATE)  # type: ignore
 
     def __enter__(self):
-        self._source: AudioSource = self._source_factory()
+        self._source = self._source_factory()
         self._source.__enter__()
-        self.SAMPLE_WIDTH = self._source.SAMPLE_WIDTH
-        self.SAMPLE_RATE = self._source.SAMPLE_RATE
-        self.CHUNK = self._source.CHUNK
+        self.SAMPLE_WIDTH = self._source.SAMPLE_WIDTH  # type: ignore
+        self.SAMPLE_RATE = self._source.SAMPLE_RATE  # type: ignore
+        self.CHUNK = self._source.CHUNK  # type: ignore
         self.stream = BufferedAudioSourceWrapper.OutputStream(self._denoiser)
         self._continue.set()
         self._thread = threading.Thread(target=self._read_proc, daemon=True)
@@ -80,7 +80,8 @@ class BufferedAudioSourceWrapper(AudioSource):
     def __exit__(self, exc_type, exc_value, traceback):
         self._continue.clear()
         self._thread.join()
-        self._source.__exit__(exc_type, exc_value, traceback)
+        if self._source is not None:
+            self._source.__exit__(exc_type, exc_value, traceback)
 
     class OutputStream(object):
         def __init__(self, denoiser: Optional[SpeechDenoiser]):

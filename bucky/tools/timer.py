@@ -14,17 +14,13 @@ class TimerToolInput(BaseModel):
 
 class TimerTool(BaseTool):
     name: str = "timer"
-    description: str = "Use this to set a timer that plays an alarm after the duration expired."
-    args_schema: Type[BaseModel] = TimerToolInput  # type: ignore
-    fx_player: Optional[FxPlayer] = None
+    description: str = "Use this to set a timer that plays an alarm after the duration expired. Only use this tool if the user commands it."
+    fx_player: FxPlayer
 
     def __init__(self, fx_player: FxPlayer):
-        super().__init__()
-        self.fx_player = fx_player
+        super().__init__(fx_player=fx_player, args_schema=TimerToolInput)
 
     def _run(self, duration: str, unit: str) -> str:
-        assert self.fx_player
-
         sleep_duration: float = float(duration)
         if unit.lower().startswith("h"):
             sleep_duration *= 3600

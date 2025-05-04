@@ -30,7 +30,7 @@ for fname in images:
         corners2 = cv.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
         imgpoints.append(corners2)
 
-retval, K, D, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, img_size, None, None)
+retval, K, D, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, img_size, None, None)  # type: ignore
 print("retval", retval)
 print("K", K)
 print("D", D)

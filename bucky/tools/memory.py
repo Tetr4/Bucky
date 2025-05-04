@@ -1,7 +1,10 @@
-from typing import Optional, Type
+from typing import Type
 from langchain.tools import BaseTool
 from bucky.memory_store import MemoryStore
 from pydantic import BaseModel, Field
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CreateMemoryToolInput(BaseModel):
@@ -11,12 +14,10 @@ class CreateMemoryToolInput(BaseModel):
 class CreateMemoryTool(BaseTool):
     name: str = "remember_fact"
     description: str = """Use this tool to remember new facts like people's name, preferences etc."""
-    args_schema: Type[BaseModel] = CreateMemoryToolInput  # type: ignore
-    store: MemoryStore = None  # type: ignore
+    store: MemoryStore
 
     def __init__(self, store: MemoryStore):
-        super().__init__()
-        self.store = store
+        super().__init__(store=store, args_schema=CreateMemoryToolInput)
 
     def _run(self, fact: str) -> str:
         self.store.add(fact)
@@ -31,12 +32,10 @@ class UpdateMemoryToolInput(BaseModel):
 class UpdateMemoryTool(BaseTool):
     name: str = "update_fact"
     description: str = """Use this tool to update existing facts like people's name, preferences etc."""
-    args_schema: Type[BaseModel] = UpdateMemoryToolInput  # type: ignore
-    store: MemoryStore = None  # type: ignore
+    store: MemoryStore
 
     def __init__(self, store: MemoryStore):
-        super().__init__()
-        self.store = store
+        super().__init__(store=store, args_schema=UpdateMemoryToolInput)
 
     def _run(self, id: str, fact: str) -> str:
         self.store.update(id, fact)
@@ -50,13 +49,16 @@ class DeleteMemoryToolInput(BaseModel):
 class DeleteMemoryTool(BaseTool):
     name: str = "delete_fact"
     description: str = """Use this tool if a fact is not important anymore."""
-    args_schema: Type[BaseModel] = DeleteMemoryToolInput  # type: ignore
-    store: MemoryStore = None  # type: ignore
+    store: MemoryStore
 
     def __init__(self, store: MemoryStore):
-        super().__init__()
+        super().__init__(store=store, args_schema=DeleteMemoryToolInput)
         self.store = store
 
     def _run(self, id: str) -> str:
+        fact = self.store.try_get(id)
+        if fact is None:
+            raise ValueError("invalid id")
+        logger.info(f"deleting fact [{id}]: {fact}")
         self.store.delete(id)
         return "Fact deleted"

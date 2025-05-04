@@ -1,6 +1,6 @@
 import pickle
 from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
-from typing import Callable, NamedTuple, Optional
+from typing import Callable, Generator, NamedTuple, Optional, assert_type, cast
 from bucky.common.gpu_utils import get_free_cuda_device
 from bucky.audio.filter import SpeechDenoiser
 from bucky.audio.source import BufferedAudioSourceWrapper, HttpAudioSource
@@ -87,12 +87,12 @@ class Recorder:
         with BufferedAudioSourceWrapper(self.source_factory, self.denoiser) as source:
             while True:
                 if not self.wait_for_wake_word:
-                    logger.info(f"{cli_bold_green}Listening...{cli_color_reset}")
                     if is_complex_wakeup_phrase(last_wakeup_phrase):
                         self.on_stop_listening()
                         return last_wakeup_phrase
                     else:
                         source.flush_stream()
+                        print(f"{cli_bold_green}Listening...{cli_color_reset}")
                         self.on_start_listening()
 
                     start = time.time()
@@ -121,7 +121,7 @@ class Recorder:
                 if self.wakewords:
                     self.on_waiting_for_wakeup()
 
-                    logger.info(f"{cli_bold_yellow}Waiting for Wakeword...{cli_color_reset}")
+                    print(f"{cli_bold_yellow}Waiting for Wakeword...{cli_color_reset}")
                     source.flush_stream()
                     while True:
                         transcription = self.recognize(source,
@@ -146,10 +146,15 @@ class Recorder:
                   timeout: Optional[float]) -> Transcription:
         self.recognizer.pause_threshold = pause_threshold
         chunks: list[AudioData] = []
-        for audio_frame in self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit, stream=True):
+        generator = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit, stream=True)
+        assert isinstance(generator, Generator)
+        for audio_frame in generator:
+            if not isinstance(audio_frame, AudioData):
+                break
             chunks.append(audio_frame)
         frame_data = b"".join(chunk.frame_data for chunk in chunks)
-        audio: AudioData = AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
+
+        audio: AudioData = AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)  # type: ignore
 
         result = self.recognizer.recognize_whisper(
             audio_data=audio, model=self.model, show_dict=True, load_options=None, language=self.language, translate=False,

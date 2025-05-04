@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, Sized, TypeVar
 import numpy as np
 import torch
 
-T = TypeVar('T')
+T = TypeVar('T', bound=Sized)
 
 
 class SpeechDenoiser(ABC, Generic[T]):
@@ -54,7 +54,7 @@ class SpeechDenoiser(ABC, Generic[T]):
 
         start_idx: int = -len(noisy_chunk) * min(self.next_chunk_offset, len(self.chunk_buffer))
         end_idx: int = start_idx + len(noisy_chunk)
-        clean_chunk: T = self._get_denoised_slice(self.last_result, start_idx, end_idx if end_idx else None)
+        clean_chunk: bytes = self._get_denoised_slice(self.last_result, start_idx, end_idx if end_idx else None)
 
         self.next_chunk_offset -= 1
         if self.next_chunk_offset < self.min_chunk_offset:
@@ -101,7 +101,7 @@ class SpeechDenoiserDF(SpeechDenoiser[torch.Tensor]):
         self.model, self.df_state, _ = init_df(log_level="none", post_filter=False)
 
     def _convert_samples(self, samples: bytes) -> torch.Tensor:
-        return torch.frombuffer(samples, dtype=torch.int16).to(torch.float32) / (1 << 15)
+        return torch.frombuffer(bytearray(samples), dtype=torch.int16).to(torch.float32) / (1 << 15)
 
     def _denoise_chunk_buffer(self, chunk_buffer: list[torch.Tensor], sample_rate: int) -> torch.Tensor:
         from torchaudio.functional import resample

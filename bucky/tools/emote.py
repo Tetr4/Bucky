@@ -1,4 +1,3 @@
-from typing import Type
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 from bucky.robot import IRobot
@@ -12,12 +11,10 @@ class EmoteToolInput(BaseModel):
 class EmoteTool(BaseTool):
     name: str = "emote"
     description: str = "Use this to show an emotion on your face for a few seconds."
-    args_schema: Type[BaseModel] = EmoteToolInput
-    robot: IRobot = None  # type: ignore
+    robot: IRobot
 
     def __init__(self, robot: IRobot):
-        super().__init__()
-        self.robot = robot
+        super().__init__(robot=robot, args_schema=EmoteToolInput)
 
     def _run(self, emotion: str) -> str:
         if emotion == "happy":

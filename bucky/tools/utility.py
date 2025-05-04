@@ -15,11 +15,10 @@ def get_current_time() -> str:
 class TakeImageTool(BaseTool):
     name: str = "take_image"
     description: str = "Returns a description of what you currently see with your eyes."
-    robot: IRobot = None  # type: ignore
+    robot: IRobot
 
     def __init__(self, robot: IRobot):
-        super().__init__()
-        self.robot = robot
+        super().__init__(robot=robot)
 
     def _run(self) -> list:
         image_base64 = self.robot.take_image(640, 480)
@@ -30,11 +29,10 @@ class TakeImageTool(BaseTool):
 class EndConversationTool(BaseTool):
     name: str = "end_conversation"
     description: str = "Use this tool when the user does not want to talk to you anymore. For example if the user says 'bye'."
-    on_end_conversation: Callable = None  # type: ignore
+    on_end_conversation: Callable
 
     def __init__(self, on_end_conversation: Callable):
-        super().__init__()
-        self.on_end_conversation = on_end_conversation
+        super().__init__(on_end_conversation=on_end_conversation)
 
     def _run(self) -> str:
         self.on_end_conversation()

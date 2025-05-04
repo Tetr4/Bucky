@@ -1,4 +1,3 @@
-from typing import Optional, Type
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 from bucky.robot import IRobot
@@ -13,19 +12,13 @@ class TurnToolInput(BaseModel):
 class TurnTool(BaseTool):
     name: str = "turn"
     description: str = "Use this to turn your robot body left, right or towards the user."
-    args_schema: Type[BaseModel] = TurnToolInput  # type: ignore
-    robot: Optional[IRobot] = None
-    tracker: Optional[UserTracker] = None
+    robot: IRobot
+    tracker: UserTracker
 
     def __init__(self, robot: IRobot, tracker: UserTracker):
-        super().__init__()
-        self.robot = robot
-        self.tracker = tracker
+        super().__init__(robot=robot, tracker=tracker, args_schema=TurnToolInput)
 
     def _run(self, direction: str) -> str:
-        assert self.robot
-        assert self.tracker
-
         direction = direction.lower()
         if direction.startswith("l"):
             self.robot.turn_left()
@@ -39,8 +32,6 @@ class TurnTool(BaseTool):
             raise ValueError("invalid direction")
 
     def _turn_to_user(self) -> str:
-        assert self.robot
-        assert self.tracker
         dir: str = self.tracker.user_direction
         if dir == "left":
             self.robot.turn_left()
