@@ -84,22 +84,21 @@ class UserTracker:
             cam_stream: CameraStream = self._cam_stream_factory()
             with cam_stream:
                 while self._continue.is_set():
-                    with self._data_lock:
-                        camera_image = cam_stream.read()
-                        if camera_image is not None:
-                            start: float = time.time()
-                            self._update(camera_image)
-                            dt: float = time.time() - start
-                            time.sleep(max(0.0, 30/1000 - dt))
-                            continue
-                    time.sleep(3.0)
-                    break
+                    camera_image = cam_stream.read()
+                    if camera_image is not None:
+                        start: float = time.time()
+                        self._update(camera_image)
+                        dt: float = time.time() - start
+                        time.sleep(max(0.0, 30/1000 - dt))
+                    else:
+                        time.sleep(3.0)
+                        break
 
     def _update(self, camera_image: np.ndarray):
+        rgb = cv2.cvtColor(camera_image, cv2.COLOR_BGR2RGB)
+        results = self._face_mesh.process(rgb)
         with self._data_lock:
             self._faces.clear()
-            rgb = cv2.cvtColor(camera_image, cv2.COLOR_BGR2RGB)
-            results = self._face_mesh.process(rgb)
             if results.multi_face_landmarks:  # type: ignore
                 for i, face_landmarks in enumerate(results.multi_face_landmarks):  # type: ignore
                     face = Face(FaceRawData(camera_image, face_landmarks.landmark))

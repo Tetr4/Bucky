@@ -7,14 +7,14 @@ import threading
 
 
 class TimerToolInput(BaseModel):
-    duration: str = Field(description='The duration for the timer. e.g. 5')
+    duration: str = Field(description='The duration for the countdown. e.g. 5')
     unit: str = Field(
         description='The unit of the duration. Only Seconds, Minutes or Hours are valid. Must always be in english. ')
 
 
 class TimerTool(BaseTool):
-    name: str = "timer"
-    description: str = "Use this to set a timer that plays an alarm after the duration expired. Only use this tool if the user commands it."
+    name: str = "countdown"
+    description: str = "Use this to set a countdown that plays an alarm after the duration expired."
     fx_player: FxPlayer
 
     def __init__(self, fx_player: FxPlayer):

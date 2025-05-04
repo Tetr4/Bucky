@@ -103,9 +103,11 @@ def main():
         robot.emote_attention()
         voice.speak(random.choice(greeting_phrases))
 
-    def on_unintelligible(trans: Transcription):
-        if trans.speech_prob > 0.1 and trans.phrase != "Vielen Dank.":
+    def on_unintelligible(trans: Transcription) -> bool:
+        if trans.speech_prob > 0.1 and trans.phrase not in ["Vielen Dank.", "Untertitelung des ZDF, 2020"]:
             voice.speak(random.choice(question_phrases))
+            return True
+        return False
 
     recorder = Recorder(
         wakewords=["hey b", "hey p", "hey k", "bucky", "pakki", "kumpel", "howdy"],

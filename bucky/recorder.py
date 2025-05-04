@@ -38,7 +38,7 @@ class Recorder:
         on_stop_listening: Callable = lambda: None,
         on_waiting_for_wakeup: Callable = lambda: None,
         on_wakeup: Callable = lambda: None,
-        on_unintelligible: Callable[[Transcription], None] = lambda _: None,
+        on_unintelligible: Callable[[Transcription], bool] = lambda _: False,
         has_user_attention: Callable[[], bool] = lambda: False,
     ) -> None:
         self.wakewords: list[str] = wakewords
@@ -51,7 +51,7 @@ class Recorder:
         self.on_stop_listening: Callable = on_stop_listening
         self.on_waiting_for_wakeup: Callable = on_waiting_for_wakeup
         self.on_wakeup: Callable = on_wakeup
-        self.on_unintelligible: Callable[[Transcription], None] = on_unintelligible
+        self.on_unintelligible: Callable[[Transcription], bool] = on_unintelligible
         self.has_user_attention: Callable[[], bool] = has_user_attention
 
         self.recognizer = Recognizer()
@@ -98,19 +98,20 @@ class Recorder:
                     start = time.time()
                     while True:
                         try:
-                            timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
+                            phrase_start_timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
                             trans: Transcription = self.recognize(source,
                                                                   pause_threshold=2.0,
-                                                                  phrase_time_limit=15.0,
-                                                                  timeout=timeout)
+                                                                  phrase_time_limit=60.0,
+                                                                  phrase_start_timeout=phrase_start_timeout)
                             if trans.phrase:
                                 if trans.is_noise:
-                                    self.on_unintelligible(trans)
+                                    if self.on_unintelligible(trans):
+                                        start = time.time()  # reset timeout
                                     source.flush_stream()
                                 else:
                                     self.on_stop_listening()
                                     return f"{last_wakeup_phrase} {trans.phrase}".strip()
-                            if timeout and (time.time() - start) > timeout:
+                            if phrase_start_timeout and (time.time() - start) > phrase_start_timeout:
                                 raise WaitTimeoutError()
                         except WaitTimeoutError:
                             if not self.has_user_attention():
@@ -127,7 +128,7 @@ class Recorder:
                         transcription = self.recognize(source,
                                                        pause_threshold=1.0,
                                                        phrase_time_limit=10.0,
-                                                       timeout=None)
+                                                       phrase_start_timeout=None)
                         if not transcription.phrase:
                             continue
 
@@ -143,17 +144,19 @@ class Recorder:
                   source: AudioSource,
                   pause_threshold: float,
                   phrase_time_limit: Optional[float],
-                  timeout: Optional[float]) -> Transcription:
+                  phrase_start_timeout: Optional[float]) -> Transcription:
         self.recognizer.pause_threshold = pause_threshold
+        self.recognizer.non_speaking_duration = 0.8
         chunks: list[AudioData] = []
-        generator = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit, stream=True)
+        generator = self.recognizer.listen(source, timeout=phrase_start_timeout,
+                                           phrase_time_limit=phrase_time_limit, stream=True)
         assert isinstance(generator, Generator)
         for audio_frame in generator:
             if not isinstance(audio_frame, AudioData):
                 break
             chunks.append(audio_frame)
-        frame_data = b"".join(chunk.frame_data for chunk in chunks)
 
+        frame_data = b"".join(chunk.frame_data for chunk in chunks)
         audio: AudioData = AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)  # type: ignore
 
         result = self.recognizer.recognize_whisper(
