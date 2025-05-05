@@ -100,8 +100,8 @@ class Recorder:
                         try:
                             phrase_start_timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
                             trans: Transcription = self.recognize(source,
-                                                                  pause_threshold=2.0,
-                                                                  phrase_time_limit=60.0,
+                                                                  pause_threshold=1.5,
+                                                                  phrase_time_limit=15.0,
                                                                   phrase_start_timeout=phrase_start_timeout)
                             if trans.phrase:
                                 if trans.is_noise:
