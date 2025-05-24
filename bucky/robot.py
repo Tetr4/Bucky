@@ -262,14 +262,14 @@ class BuckyBot(IRobot):
 
     def turn_left(self) -> None:
         def func():
-            requests.get(f"{self.url}/motors/set_speed?left=-200&right=200")
+            requests.get(f"{self.url}/motors/set_speed?left=-0.8&right=0.8")
             time.sleep(0.2)
             requests.get(f"{self.url}/motors/set_speed?left=0&right=0")
         self.__run_async(func)
 
     def turn_right(self) -> None:
         def func():
-            requests.get(f"{self.url}/motors/set_speed?left=200&right=-200")
+            requests.get(f"{self.url}/motors/set_speed?left=0.8&right=-0.8")
             time.sleep(0.2)
             requests.get(f"{self.url}/motors/set_speed?left=0&right=0")
         self.__run_async(func)
