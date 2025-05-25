@@ -45,11 +45,19 @@ class IRobot(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def turn_left(self) -> None:
+    def turn_left(self, angle: float, speed: float) -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    def turn_right(self) -> None:
+    def turn_right(self, angle: float, speed: float) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def drive_forward(self, distance: float, speed: float) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def drive_backward(self, distance: float, speed: float) -> None:
         raise NotImplementedError()
 
     @abstractmethod
@@ -128,10 +136,16 @@ class FakeBot(IRobot):
     def emote_attention(self, delay: float = 0.0) -> None:
         pass
 
-    def turn_left(self) -> None:
+    def turn_left(self, angle: float, speed: float) -> None:
         pass
 
-    def turn_right(self) -> None:
+    def turn_right(self, angle: float, speed: float) -> None:
+        pass
+
+    def drive_forward(self, distance: float, speed: float) -> None:
+        pass
+
+    def drive_backward(self, distance: float, speed: float) -> None:
         pass
 
     def take_image(self, width=640, height=480) -> str:
@@ -260,19 +274,17 @@ class BuckyBot(IRobot):
             requests.get(f"{self.url}/eyes/set_autoblinker?on=true")
         self.__run_async(func)
 
-    def turn_left(self) -> None:
-        def func():
-            requests.get(f"{self.url}/motors/set_speed?left=-0.8&right=0.8")
-            time.sleep(0.2)
-            requests.get(f"{self.url}/motors/set_speed?left=0&right=0")
-        self.__run_async(func)
+    def turn_left(self, angle: float, speed: float) -> None:
+        requests.get(f"{self.url}/nav/turn?angle={-angle}&speed={speed}&blocking=true")
 
-    def turn_right(self) -> None:
-        def func():
-            requests.get(f"{self.url}/motors/set_speed?left=0.8&right=-0.8")
-            time.sleep(0.2)
-            requests.get(f"{self.url}/motors/set_speed?left=0&right=0")
-        self.__run_async(func)
+    def turn_right(self, angle: float, speed: float) -> None:
+        requests.get(f"{self.url}/nav/turn?angle={angle}&speed={speed}&blocking=true")
+
+    def drive_forward(self, distance: float, speed: float) -> None:
+        requests.get(f"{self.url}/nav/drive?distance={distance}&speed={speed}&blocking=true")
+
+    def drive_backward(self, distance: float, speed: float) -> None:
+        requests.get(f"{self.url}/nav/drive?distance={-distance}&speed={speed}&blocking=true")
 
     def take_image(self, width=640, height=480) -> str:
         bytes = httpx.get(f"{self.url}/cam/still?width={width}&height={height}").content

@@ -35,17 +35,17 @@ class Agent:
         self.llm = llm.bind_tools(tools)
         self.graph = self._create_graph()
         self.recorder = recorder
-        self.system_prompt_format_callback: Optional[Callable[[str], str]] = None
+        self.system_prompt_format_callback: Optional[Callable[[str], str | list]] = None
         self.debug_state_callback: Optional[Callable[[list[BaseMessage]], None]] = None
 
     @property
     def system_message(self) -> list[BaseMessage]:
-        system_prompt = self.system_prompt_template
+        system_prompt_content = self.system_prompt_template
         if self.system_prompt_format_callback is not None:
-            system_prompt = self.system_prompt_format_callback(system_prompt)
+            system_prompt_content = self.system_prompt_format_callback(self.system_prompt_template)
 
         # print(f"System prompt: {system_prompt}")
-        return [SystemMessage(content=system_prompt)]
+        return [SystemMessage(content=system_prompt_content)]
 
     def _create_graph(self) -> CompiledGraph:
         """

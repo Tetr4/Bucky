@@ -8,7 +8,7 @@ from bucky.fx_player import FxPlayer
 from bucky.memory_store import MemoryStore
 from bucky.tools.emote import EmoteTool
 from bucky.tools.memory import CreateMemoryTool, UpdateMemoryTool, DeleteMemoryTool
-from bucky.tools.movement import TurnTool
+from bucky.tools.movement import TurnTool, DriveTool
 from bucky.tools.utility import get_current_time, TakeImageTool, EndConversationTool
 from bucky.tools.meal import get_random_meal, search_meal_by_ingredient
 from bucky.tools.timer import TimerTool
@@ -128,6 +128,7 @@ def main():
         EndConversationTool(recorder.stop_listening),
         EmoteTool(robot),
         TurnTool(robot, tracker),
+        DriveTool(robot),
         get_weather_forecast,
         # get_random_meal,
         # search_meal_by_ingredient,
@@ -145,13 +146,17 @@ def main():
         recorder=recorder  # Optional
     )
 
-    def get_formatted_system_prompt(system_prompt_template: str) -> str:
+    def get_formatted_system_prompt(system_prompt_template: str) -> str | list:
         memories: dict[str, str] = memory_store.dump()
         now = datetime.now().astimezone(timezone("Europe/Berlin")).isoformat()
-        return system_prompt_template.format(
+        text = system_prompt_template.format(
             memories=memories,
             current_time=now,
         )
+        return text
+        # image_base64 = robot.take_image(640, 480)
+        # return [{"type": "text", "text": text},
+        #         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}]
 
     agent.system_prompt_format_callback = get_formatted_system_prompt
 
