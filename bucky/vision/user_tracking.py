@@ -36,7 +36,6 @@ class UserTracker:
         self._update_thread: Optional[Thread] = None
 
         if self._debug_mode:
-            cv2.namedWindow("user tracking", cv2.WINDOW_NORMAL)
             self._debug_window_thread = Thread(target=self._debug_window_proc, daemon=True)
             self._debug_window_thread.start()
 
@@ -135,6 +134,7 @@ class UserTracker:
             if camera_image is None:
                 break
             cv2.imshow(f"user tracking", camera_image)
+            cv2.waitKey(1)
 
 
 # pdm run python -m bucky.vision.user_tracking
