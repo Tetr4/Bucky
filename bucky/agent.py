@@ -8,7 +8,7 @@ from langchain_core.messages.base import get_msg_title_repr
 from langchain_ollama import ChatOllama
 from langgraph.graph import START, END, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.graph.graph import CompiledGraph
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from bucky.common.message_utils import has_image_data
@@ -47,7 +47,7 @@ class Agent:
         # print(f"System prompt: {system_prompt}")
         return [SystemMessage(content=system_prompt_content)]
 
-    def _create_graph(self) -> CompiledGraph:
+    def _create_graph(self) -> CompiledStateGraph:
         """
         The agent can output text (END) or call tools.
         """
