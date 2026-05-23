@@ -15,6 +15,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from bucky.common.message_utils import has_image_data
 from bucky.recorder import Recorder
 from bucky.voice import Voice
+from bucky.config import model_audio_input
 
 
 class State(TypedDict):
@@ -122,7 +123,7 @@ class Agent:
         while True:
             if self.recorder:
                 transcription = self.recorder.listen()
-                user_input = transcription.audio if transcription.audio else transcription.phrase
+                user_input = transcription.audio if model_audio_input and transcription.audio else transcription.phrase
             else:
                 user_input = input("You: ")
             self._generate_answer(user_input, thread_id)
