@@ -21,7 +21,12 @@ cli_bold_yellow = "\x1b[33;1m"
 cli_bold_blue = "\x1b[34;1m"
 cli_color_reset = "\x1b[0m"
 
-Transcription = NamedTuple("Transcription", [("phrase", str), ("is_noise", bool), ("speech_prob", float)])
+Transcription = NamedTuple("Transcription", [
+    ("phrase", str),
+    ("is_noise", bool),
+    ("speech_prob", float),
+    ("audio", AudioData | None),
+])
 
 
 class Recorder:
@@ -71,7 +76,7 @@ class Recorder:
 
         self.denoiser = denoiser
 
-    def listen(self) -> str:
+    def listen(self) -> Transcription:
         def contains_any_wakeword(phrase: str) -> bool:
             p = phrase.lower().replace(",", "")
             for wakeword in self.wakewords:
@@ -82,14 +87,14 @@ class Recorder:
         def is_complex_wakeup_phrase(phrase: str) -> bool:
             return len(phrase.split()) > 3 or phrase.endswith("?")
 
-        last_wakeup_phrase: str = ""
+        last_wakeup: Optional[Transcription] = None
 
         with BufferedAudioSourceWrapper(self.source_factory, self.denoiser) as source:
             while True:
                 if not self.wait_for_wake_word:
-                    if is_complex_wakeup_phrase(last_wakeup_phrase):
+                    if last_wakeup and is_complex_wakeup_phrase(last_wakeup.phrase):
                         self.on_stop_listening()
-                        return last_wakeup_phrase
+                        return last_wakeup
                     else:
                         source.flush_stream()
                         print(f"{cli_bold_green}Listening...{cli_color_reset}")
@@ -110,7 +115,10 @@ class Recorder:
                                     source.flush_stream()
                                 else:
                                     self.on_stop_listening()
-                                    return f"{last_wakeup_phrase} {trans.phrase}".strip()
+                                    if last_wakeup:
+                                        return trans._replace(
+                                            phrase=f"{last_wakeup.phrase} {trans.phrase}".strip())
+                                    return trans
                             if phrase_start_timeout and (time.time() - start) > phrase_start_timeout:
                                 raise WaitTimeoutError()
                         except WaitTimeoutError:
@@ -133,7 +141,7 @@ class Recorder:
                             continue
 
                         if contains_any_wakeword(transcription.phrase):
-                            last_wakeup_phrase = transcription.phrase.strip()
+                            last_wakeup = transcription._replace(phrase=transcription.phrase.strip())
                             self.on_wakeup()
                             break
 
@@ -174,9 +182,9 @@ class Recorder:
                 f"phrase: {phrase_color}{phrase}{cli_color_reset} {speech_prob_color}({speech_prob=:.2f}){cli_color_reset}")
             if isinstance(audio, AudioData):
                 self.write_to_wav_file(phrase, audio, chunks)
-            return Transcription(phrase=phrase, is_noise=is_noise, speech_prob=speech_prob)
+            return Transcription(phrase=phrase, is_noise=is_noise, speech_prob=speech_prob, audio=audio)
 
-        return Transcription(phrase="", is_noise=True, speech_prob=0.0)
+        return Transcription(phrase="", is_noise=True, speech_prob=0.0, audio=None)
 
     def write_to_wav_file(self, transcript: str, data: AudioData, chunks: list[AudioData]):
         if not self.wav_output_dir:

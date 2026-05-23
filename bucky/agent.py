@@ -1,11 +1,12 @@
+import base64
 from typing import Callable, Literal, Optional, Annotated
 from typing_extensions import TypedDict
+from speech_recognition import AudioData
 from langchain_core.runnables import RunnableConfig
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage, RemoveMessage
 from langchain_core.messages.base import get_msg_title_repr
-from langchain_ollama import ChatOllama
 from langgraph.graph import START, END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
@@ -119,11 +120,26 @@ class Agent:
 
     def run(self, thread_id: int = 1) -> None:
         while True:
-            user_input = self.recorder.listen() if self.recorder else input("You: ")
+            if self.recorder:
+                transcription = self.recorder.listen()
+                user_input = transcription.audio if transcription.audio else transcription.phrase
+            else:
+                user_input = input("You: ")
             self._generate_answer(user_input, thread_id)
 
-    def _generate_answer(self, user_input: str, thread_id: int) -> None:
-        inputs = {"messages": [HumanMessage(content=user_input)]}
+    def _generate_answer(self, user_input: str | AudioData, thread_id: int) -> None:
+        if isinstance(user_input, str):
+            content: str | list[str | dict] = user_input
+        else:
+            wav_b64 = base64.b64encode(user_input.get_wav_data()).decode("ascii")
+            # Ollama currently expects audio to be passed as images.
+            content = [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:audio/wav;base64,{wav_b64}"}
+                }
+            ]
+        inputs = {"messages": [HumanMessage(content=content)]}
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         consumed_messages = set()
         for chunk in self.graph.stream(inputs, config, stream_mode="values"):
