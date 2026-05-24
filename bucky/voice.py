@@ -1,6 +1,7 @@
 from pathlib import Path
 import time
 from typing import Iterator, TYPE_CHECKING
+import demoji
 import numpy as np
 import sounddevice
 import torch
@@ -194,6 +195,8 @@ class Voice:
         return sections
 
     def speak(self, message: str) -> None:
+        message = demoji.replace(message)
+
         self.wave_queue.join()
 
         if not self._enqueu_from_cache(message):

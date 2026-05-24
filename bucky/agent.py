@@ -13,9 +13,9 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from bucky.common.message_utils import has_image_data
-from bucky.recorder import Recorder
+from bucky.recorder import Recorder, Transcription
 from bucky.voice import Voice
-from bucky.config import model_audio_input
+import bucky.config as cfg
 
 
 class State(TypedDict):
@@ -122,24 +122,19 @@ class Agent:
     def run(self, thread_id: int = 1) -> None:
         while True:
             if self.recorder:
-                transcription = self.recorder.listen()
-                user_input = transcription.audio if model_audio_input and transcription.audio else transcription.phrase
+                user_input = self.recorder.listen()
             else:
                 user_input = input("You: ")
             self._generate_answer(user_input, thread_id)
 
-    def _generate_answer(self, user_input: str | AudioData, thread_id: int) -> None:
+    def _generate_answer(self, user_input: str | Transcription, thread_id: int) -> None:
         if isinstance(user_input, str):
-            content: str | list[str | dict] = user_input
+            content = user_input
+        elif cfg.model_audio_input:
+            content = user_input.record.create_message_content()
         else:
-            wav_b64 = base64.b64encode(user_input.get_wav_data()).decode("ascii")
-            # Ollama currently expects audio to be passed as images.
-            content = [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:audio/wav;base64,{wav_b64}"}
-                }
-            ]
+            content = user_input.phrase
+
         inputs = {"messages": [HumanMessage(content=content)]}
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         consumed_messages = set()

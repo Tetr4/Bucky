@@ -321,6 +321,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "coqui-tts" },
     { name = "deepfilternet" },
+    { name = "demoji" },
     { name = "httpx" },
     { name = "langchain" },
     { name = "langchain-community" },
@@ -347,6 +348,7 @@ dependencies = [
 requires-dist = [
     { name = "coqui-tts", specifier = ">=0.26.0" },
     { name = "deepfilternet", specifier = ">=0.5.6" },
+    { name = "demoji", specifier = ">=2.0.0" },
     { name = "httpx", specifier = ">=0.27.2" },
     { name = "langchain", specifier = ">=0.3.12" },
     { name = "langchain-community", specifier = ">=0.3.12" },
@@ -909,6 +911,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/df/ad/5d087d922407983c8a98064faf1d7bcc7851b15001c36c39a1b398c4a989/deepfilternet-0.5.6.tar.gz", hash = "sha256:2e64f58cf6b346cf64bd9bd83fcc97452604aa398adf161d23bcbadc5fd6d16c", size = 91770, upload-time = "2023-08-31T11:50:54.014Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/70/71/2edcc970c4dc689c301ea83e89a169fde08d6af0dfb26b14009ab27ee105/deepfilternet-0.5.6-py3-none-any.whl", hash = "sha256:99f5688d954fcfa8f853bf8bb8c3b2a59e4f9dc5d95643c9e6a32053234ba7c6", size = 113208, upload-time = "2023-08-31T11:50:52.358Z" },
+]
+
+[[package]]
+name = "demoji"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/c1/fd43225c9a87628c9885370ef203d37920f03dac231de58f2d09fb737cae/demoji-2.0.0.tar.gz", hash = "sha256:570d34980588d6625867cda789973bc92f84b67ee9ef757cb877d37fa0d2a6ee", size = 42663, upload-time = "2026-04-19T01:40:32.343Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/53/e3/143672272e410bb131755c1d12d13e0e53e2235714c0b9ba358408911c4d/demoji-2.0.0-py3-none-any.whl", hash = "sha256:512e94aa0e828912ec55d441d92921a14233465317e6336a819deecac5d652ef", size = 43391, upload-time = "2026-04-19T01:40:30.787Z" },
 ]
 
 [[package]]

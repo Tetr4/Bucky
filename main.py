@@ -120,7 +120,8 @@ def main():
         on_waiting_for_wakeup=on_waiting_for_wakeup,
         on_wakeup=on_wakeup,
         on_unintelligible=on_unintelligible,
-        has_user_attention=lambda: tracker.max_attention > 0.5
+        has_user_attention=lambda: tracker.max_attention > 0.5,
+        # transcription_llm=llm, # use external LLM instead of Whisper
     )
 
     tools = [

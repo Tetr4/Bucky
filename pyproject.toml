@@ -25,6 +25,7 @@ dependencies = [
     "deepfilternet>=0.5.6",
     "noisereduce>=3.0.3",
     "transformers<4.50.0",
+    "demoji>=2.0.0",
 ]
 
 [tool.uv.sources]
