@@ -1,7 +1,5 @@
-import base64
 from typing import Callable, Literal, Optional, Annotated
 from typing_extensions import TypedDict
-from speech_recognition import AudioData
 from langchain_core.runnables import RunnableConfig
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
@@ -125,9 +123,9 @@ class Agent:
                 user_input = self.recorder.listen()
             else:
                 user_input = input("You: ")
-            self._generate_answer(user_input, thread_id)
+            self.generate_answer(user_input, thread_id)
 
-    def _generate_answer(self, user_input: str | Transcription, thread_id: int) -> None:
+    def generate_answer(self, user_input: str | Transcription, thread_id: int = 1) -> None:
         if isinstance(user_input, str):
             content = user_input
         elif cfg.model_audio_input:

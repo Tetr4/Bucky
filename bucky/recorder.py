@@ -1,6 +1,10 @@
 import base64
 from dataclasses import dataclass, field
 import pickle
+import whisper
+import time
+import wave
+import logging
 from langchain.schema import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.language_models import BaseChatModel
 from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
@@ -9,10 +13,8 @@ from bucky.common.gpu_utils import get_free_cuda_device
 from bucky.audio.filter import SpeechDenoiser
 from bucky.audio.source import BufferedAudioSourceWrapper
 from pathlib import Path
-import whisper
-import time
-import wave
-import logging
+from bucky.piano.perception import PerceptionType, PerceptionInput, PerceptionModule
+
 
 logger = logging.getLogger(__name__)
 cli_grey = "\x1b[38;20m"
@@ -96,7 +98,7 @@ class Transcription:
         self.record.write_debug_files(dir_path, self.phrase)
 
 
-class Recorder:
+class Recorder(PerceptionModule):
     def __init__(
         self,
         wakewords: list[str] = [],
@@ -291,3 +293,10 @@ class Recorder:
                              is_noise=is_noise,
                              speech_prob=speech_prob,
                              record=record)
+
+    def get_input(self) -> Optional[PerceptionInput]:
+        trans = self.listen()
+        return PerceptionInput(type=PerceptionType.USER_INPUT,
+                               content=trans.phrase,
+                               base_priority=int(trans.speech_prob * 10),
+                               timestamp=time.time())
