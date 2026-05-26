@@ -116,25 +116,26 @@ class Recorder(PerceptionModule):
         has_user_attention: Callable[[], bool] = lambda: False,
         transcription_llm: Optional[BaseChatModel] = None,
     ) -> None:
-        self.wakewords: list[str] = wakewords
-        self.wakeword_timeout: Optional[float] = wakeword_timeout
-        self.language: str = language
-        self.model: str = model
-        self.source_factory: Callable[[], AudioSource] = audio_source_factory
-        self.denoiser = denoiser
-        self.wav_output_dir: Optional[Path] = wav_output_dir
-        self.on_start_listening: Callable = on_start_listening
-        self.on_stop_listening: Callable = on_stop_listening
-        self.on_waiting_for_wakeup: Callable = on_waiting_for_wakeup
-        self.on_wakeup: Callable = on_wakeup
-        self.on_unintelligible: Callable[[Transcription], bool] = on_unintelligible
-        self.has_user_attention: Callable[[], bool] = has_user_attention
-        self.transcription_llm = transcription_llm
+        self._wakewords: list[str] = wakewords
+        self._wakeword_timeout: Optional[float] = wakeword_timeout
+        self._language: str = language
+        self._model: str = model
+        self._source_factory: Callable[[], AudioSource] = audio_source_factory
+        self._denoiser = denoiser
+        self._wav_output_dir: Optional[Path] = wav_output_dir
+        self._on_start_listening: Callable = on_start_listening
+        self._on_stop_listening: Callable = on_stop_listening
+        self._on_waiting_for_wakeup: Callable = on_waiting_for_wakeup
+        self._on_wakeup: Callable = on_wakeup
+        self._on_unintelligible: Callable[[Transcription], bool] = on_unintelligible
+        self._has_user_attention: Callable[[], bool] = has_user_attention
+        self._transcription_llm = transcription_llm
 
-        self.recognizer = Recognizer()
-        self.wait_for_wake_word = True
+        self._recognizer = Recognizer()
+        self._wait_for_wake_word = True
+        self._muted = False
 
-        if self.transcription_llm is None:
+        if self._transcription_llm is None:
             # get cuda device with 5GB free memory
             if cuda_device := get_free_cuda_device(5 * (1024**3)):
                 logger.info(f"WHISPER: creating GPU instance {cuda_device}")
@@ -144,14 +145,17 @@ class Recorder(PerceptionModule):
                 torch_device = "cpu"
 
             # preload the model
-            self.recognizer.whisper_model = {self.model: whisper.load_model(self.model,
-                                                                            device=torch_device,
-                                                                            in_memory=True)}
+            self._recognizer.whisper_model = {self._model: whisper.load_model(self._model,
+                                                                              device=torch_device,
+                                                                              in_memory=True)}
+
+    def set_muted(self, muted: bool):
+        self._muted = muted
 
     def listen(self) -> Transcription:
         def contains_any_wakeword(phrase: str) -> bool:
             p = phrase.lower().replace(",", "")
-            for wakeword in self.wakewords:
+            for wakeword in self._wakewords:
                 if wakeword in p:
                     return True
             return False
@@ -161,45 +165,45 @@ class Recorder(PerceptionModule):
 
         last_wakeup: Optional[Transcription] = None
 
-        with BufferedAudioSourceWrapper(self.source_factory, self.denoiser) as source:
+        with BufferedAudioSourceWrapper(self._source_factory, self._denoiser) as source:
             while True:
-                if not self.wait_for_wake_word:
+                if not self._wait_for_wake_word:
                     if last_wakeup and is_complex_wakeup_phrase(last_wakeup.phrase):
-                        self.on_stop_listening()
+                        self._on_stop_listening()
                         return last_wakeup
                     else:
                         source.flush_stream()
                         print(f"{cli_bold_green}Listening...{cli_color_reset}")
-                        self.on_start_listening()
+                        self._on_start_listening()
 
                     start = time.time()
                     while True:
                         try:
-                            phrase_start_timeout: Optional[float] = self.wakeword_timeout if self.wakewords else None
+                            phrase_start_timeout: Optional[float] = self._wakeword_timeout if self._wakewords else None
                             trans: Transcription = self.recognize(source,
                                                                   pause_threshold=1.5,
                                                                   phrase_time_limit=15.0,
                                                                   phrase_start_timeout=phrase_start_timeout)
                             if trans.phrase:
                                 if trans.is_noise:
-                                    if self.on_unintelligible(trans):
+                                    if self._on_unintelligible(trans):
                                         start = time.time()  # reset timeout
                                     source.flush_stream()
                                 else:
-                                    self.on_stop_listening()
+                                    self._on_stop_listening()
                                     if last_wakeup:
                                         return last_wakeup + trans
                                     return trans
                             if phrase_start_timeout and (time.time() - start) > phrase_start_timeout:
                                 raise WaitTimeoutError()
                         except WaitTimeoutError:
-                            if not self.has_user_attention():
+                            if not self._has_user_attention():
                                 break
 
-                self.wait_for_wake_word = False
+                self._wait_for_wake_word = False
 
-                if self.wakewords:
-                    self.on_waiting_for_wakeup()
+                if self._wakewords:
+                    self._on_waiting_for_wakeup()
 
                     print(f"{cli_bold_yellow}Waiting for Wakeword...{cli_color_reset}")
                     source.flush_stream()
@@ -213,24 +217,27 @@ class Recorder(PerceptionModule):
 
                         if contains_any_wakeword(transcription.phrase):
                             last_wakeup = transcription
-                            self.on_wakeup()
+                            self._on_wakeup()
                             break
 
-    def stop_listening(self):
-        self.wait_for_wake_word = True
+    def reset(self):
+        self._wait_for_wake_word = True
 
     def recognize(self,
                   source: AudioSource,
                   pause_threshold: float,
                   phrase_time_limit: Optional[float],
                   phrase_start_timeout: Optional[float]) -> Transcription:
-        self.recognizer.pause_threshold = pause_threshold
-        self.recognizer.non_speaking_duration = 0.8
+        self._recognizer.pause_threshold = pause_threshold
+        self._recognizer.non_speaking_duration = 0.8
         chunks: list[AudioData] = []
-        generator = self.recognizer.listen(source, timeout=phrase_start_timeout,
-                                           phrase_time_limit=phrase_time_limit, stream=True)
+        generator = self._recognizer.listen(source, timeout=phrase_start_timeout,
+                                            phrase_time_limit=phrase_time_limit, stream=True)
         assert isinstance(generator, Generator)
         for audio_frame in generator:
+            if self._muted:
+                chunks.clear()
+                break
             if not isinstance(audio_frame, AudioData):
                 break
             chunks.append(audio_frame)
@@ -239,13 +246,16 @@ class Recorder(PerceptionModule):
                              sample_width=source.SAMPLE_WIDTH,  # type: ignore
                              chunks=chunks)
 
-        if self.transcription_llm:
-            trans = self.recognize_llm(record)
-        else:
-            trans = self.recognize_whisper(record)
+        if chunks:
+            if self._transcription_llm:
+                trans = self.recognize_llm(record)
+            else:
+                trans = self.recognize_whisper(record)
 
-        if trans and self.wav_output_dir:
-            trans.write_debug_files(self.wav_output_dir)
+            if trans and self._wav_output_dir:
+                trans.write_debug_files(self._wav_output_dir)
+        else:
+            trans = None
 
         return trans or Transcription(phrase="", is_noise=True, speech_prob=0.0, record=record)
 
@@ -257,7 +267,7 @@ class Recorder(PerceptionModule):
         content.append({"type": "text", "text": prompt})
 
         input: list[BaseMessage] = [SystemMessage(content=system_prompt), HumanMessage(content=content)]
-        response: BaseMessage = self.transcription_llm.invoke(input)  # type: ignore
+        response: BaseMessage = self._transcription_llm.invoke(input)  # type: ignore
         if response.content and isinstance(response.content, str):
             logger.info(f"phrase: {cli_bold_yellow}{response.content}{cli_color_reset}")
             return Transcription(phrase=response.content,
@@ -267,12 +277,12 @@ class Recorder(PerceptionModule):
         return None
 
     def recognize_whisper(self, record: AudioRecord) -> Optional[Transcription]:
-        result = self.recognizer.recognize_whisper(
+        result = self._recognizer.recognize_whisper(
             audio_data=record.audio_data,
-            model=self.model,
+            model=self._model,
             show_dict=True,
             load_options=None,
-            language=self.language,
+            language=self._language,
             translate=False,
             condition_on_previous_text=False
         )

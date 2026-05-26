@@ -1,6 +1,6 @@
 from pathlib import Path
 import time
-from typing import Iterator, TYPE_CHECKING
+from typing import Callable, Iterator, TYPE_CHECKING
 import demoji
 import numpy as np
 import sounddevice
@@ -46,20 +46,27 @@ class Voice:
                  filler_phrases: list[str] = ["hm", "jo", "ähm", "ah", "also", "mal überlegen"],
                  pre_cached_phrases: list[str] = [],
                  chunk_size_in_seconds: float = 1.5,
-                 audio_sink_factory=lambda rate, channels: sounddevice.OutputStream(samplerate=rate, channels=channels, dtype='int16')) -> None:
-        self.language = language
-        self.audio_sink_factory = audio_sink_factory
-        self.chunk_size_in_seconds = chunk_size_in_seconds
-        self.filler_phrases = filler_phrases
-        self.filler_sounds_enabled = False
-        self.dynamic_speed = 1.0
+                 audio_sink_factory=lambda rate, channels: sounddevice.OutputStream(samplerate=rate,
+                                                                                    channels=channels,
+                                                                                    dtype='int16')) -> None:
+        self._language = language
+        self._audio_sink_factory = audio_sink_factory
+        self._chunk_size_in_seconds = chunk_size_in_seconds
+        self._filler_phrases = filler_phrases
+        self._filler_sounds_enabled = False
+        self._dynamic_speed = 1.0
+
+        self._speaking_callback: Callable[[bool], None] = lambda is_speaking: None
 
         self._init_xtts(model="tts_models/multilingual/multi-dataset/xtts_v2", voice_template=voice_template)
         self._init_phrase_cache(pre_cached_phrases + filler_phrases)
 
-        self.wave_queue: queue.Queue[np.ndarray | torch.Tensor] = queue.Queue()
-        self.player_thread = threading.Thread(target=self._playback_proc, daemon=True)
-        self.player_thread.start()
+        self._wave_queue: queue.Queue[np.ndarray | torch.Tensor] = queue.Queue()
+        self._player_thread = threading.Thread(target=self._playback_proc, daemon=True)
+        self._player_thread.start()
+
+    def set_speaking_callback(self, callback: Callable[[bool], None]):
+        self._speaking_callback = callback
 
     @property
     def synthesizer(self) -> Synthesizer:
@@ -83,7 +90,7 @@ class Voice:
         return cfg
 
     def set_filler_phrases_enabled(self, enabled: bool) -> None:
-        self.filler_sounds_enabled = enabled
+        self._filler_sounds_enabled = enabled
 
     def _init_xtts(self, model: str, voice_template: Path):
         # Note XTTS is not for commercial use: https://coqui.ai/cpml
@@ -123,11 +130,11 @@ class Voice:
         else:
             logger.debug(f"{realtime_factor=}")
 
-        unscaled_audio_duration: float = total_audio_duration / self.dynamic_speed
+        unscaled_audio_duration: float = total_audio_duration / self._dynamic_speed
         new_speed: float = min(1.0, 0.85 * unscaled_audio_duration / inference_duration)
-        if abs(self.dynamic_speed - new_speed) > 0.01:
-            self.dynamic_speed = new_speed * 0.3 + self.dynamic_speed * 0.7
-            logger.warning(f"adjusting voice speed to {self.dynamic_speed}x")
+        if abs(self._dynamic_speed - new_speed) > 0.01:
+            self._dynamic_speed = new_speed * 0.3 + self._dynamic_speed * 0.7
+            logger.warning(f"adjusting voice speed to {self._dynamic_speed}x")
 
     def _xtts_inference_stream(self, text: str) -> Iterator[torch.Tensor]:
         cfg: XttsConfig = self.tts_config
@@ -136,10 +143,10 @@ class Voice:
         total_audio_duration: float = 0.0
         for chunk in self.tts_model.inference_stream(
                 text,
-                self.language,
+                self._language,
                 self.gpt_cond_latent,
                 self.speaker_embedding,
-                stream_chunk_size=int(22050 * self.chunk_size_in_seconds / 1000),
+                stream_chunk_size=int(22050 * self._chunk_size_in_seconds / 1000),
                 overlap_wav_len=1024,
                 temperature=cfg.temperature,
                 length_penalty=cfg.length_penalty,
@@ -147,7 +154,7 @@ class Voice:
                 top_k=cfg.top_k,
                 top_p=cfg.top_p,
                 do_sample=True,
-                speed=self.dynamic_speed,
+                speed=self._dynamic_speed,
                 enable_text_splitting=False):
 
             audio_data = chunk.cpu().squeeze()
@@ -162,7 +169,7 @@ class Voice:
         cfg: XttsConfig = self.tts_config
         return self.tts_model.inference(
             text,
-            self.language,
+            self._language,
             self.gpt_cond_latent,
             self.speaker_embedding,
             temperature=cfg.temperature,
@@ -195,42 +202,43 @@ class Voice:
         return sections
 
     def speak(self, message: str) -> None:
-        message = demoji.replace(message)
-
-        self.wave_queue.join()
-
-        if not self._enqueu_from_cache(message):
-            for text_section in self._split_into_text_sections(message):
-                for chunk in self._xtts_inference_stream(text_section):
-                    self.wave_queue.put(chunk)
-
-        self.wave_queue.join()
+        self._speaking_callback(True)
+        try:
+            self._wave_queue.join()
+            message = demoji.replace(message)
+            if not self._enqueu_from_cache(message):
+                for text_section in self._split_into_text_sections(message):
+                    for chunk in self._xtts_inference_stream(text_section):
+                        self._wave_queue.put(chunk)
+            self._wave_queue.join()
+        finally:
+            self._speaking_callback(False)
 
     def _enqueu_from_cache(self, phrase: str) -> bool:
         cached_audio_phrase = self.cached_audio_phrases.get(phrase)
         if not cached_audio_phrase:
             return False
-        self.wave_queue.put(random.choice(cached_audio_phrase))
+        self._wave_queue.put(random.choice(cached_audio_phrase))
         return True
 
     def _playback_proc(self):
-        stream = self.audio_sink_factory(22050, 1)
+        stream = self._audio_sink_factory(22050, 1)
         with stream:
             next_timeout: float = 3.0
             filler_phrases_pool: list[str] = []
             while True:
                 try:
-                    wave = self.wave_queue.get(timeout=next_timeout if self.filler_phrases else None)
+                    wave = self._wave_queue.get(timeout=next_timeout if self._filler_phrases else None)
                     try:
                         next_timeout = 3.0
                         stream.write((np.array(wave) * 32767).astype(np.int16))
                     finally:
-                        self.wave_queue.task_done()
+                        self._wave_queue.task_done()
                 except queue.Empty:
                     next_timeout += random.random() * 2.0
-                    if self.filler_sounds_enabled and self.filler_phrases:
+                    if self._filler_sounds_enabled and self._filler_phrases:
                         if not filler_phrases_pool:
-                            filler_phrases_pool = list(self.filler_phrases)
+                            filler_phrases_pool = list(self._filler_phrases)
                             random.shuffle(filler_phrases_pool)
                         self._enqueu_from_cache(filler_phrases_pool.pop())
 
