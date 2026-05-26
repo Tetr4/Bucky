@@ -13,7 +13,6 @@ from bucky.common.gpu_utils import get_free_cuda_device
 from bucky.audio.filter import SpeechDenoiser
 from bucky.audio.source import BufferedAudioSourceWrapper
 from pathlib import Path
-from bucky.piano.perception import PerceptionType, PerceptionInput, PerceptionModule
 
 
 logger = logging.getLogger(__name__)
@@ -98,7 +97,7 @@ class Transcription:
         self.record.write_debug_files(dir_path, self.phrase)
 
 
-class Recorder(PerceptionModule):
+class Recorder:
     def __init__(
         self,
         wakewords: list[str] = [],
@@ -303,10 +302,3 @@ class Recorder(PerceptionModule):
                              is_noise=is_noise,
                              speech_prob=speech_prob,
                              record=record)
-
-    def get_input(self) -> Optional[PerceptionInput]:
-        trans = self.listen()
-        return PerceptionInput(type=PerceptionType.USER_INPUT,
-                               content=trans.phrase,
-                               base_priority=int(trans.speech_prob * 10),
-                               timestamp=time.time())

@@ -26,6 +26,8 @@ dependencies = [
     "noisereduce>=3.0.3",
     "transformers<4.50.0",
     "demoji>=2.0.0",
+    "ollama>=0.6.2",
+    "chromadb>=1.5.9",
 ]
 
 [tool.uv.sources]

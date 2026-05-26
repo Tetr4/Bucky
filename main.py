@@ -17,7 +17,6 @@ from bucky.tools.timer import TimerTool
 from bucky.tools.weather import get_weather_forecast
 from bucky.agent import Agent
 from bucky.vision.user_tracking import UserTracker
-from bucky.piano.vision_input_module import VisionInputModule
 from bucky.voice import Voice
 from bucky.recorder import Recorder, Transcription
 from bucky.robot import FakeBot, BuckyBot, IRobot
@@ -25,8 +24,6 @@ from bucky.http_server import AgentStateHttpServer
 from bucky.audio.source import robot_mic, local_mic
 from bucky.audio.sink import robot_speaker, local_speaker
 from bucky.audio.filter import SpeechDenoiserDF, SpeechDenoiserNR
-from bucky.piano.bottleneck import InformationBottleneck
-from bucky.piano.perception import ChatInputModule, PerceptionSystem
 
 import bucky.config as cfg
 
@@ -174,27 +171,9 @@ def main():
     agent.debug_state_callback = http_server.set_agent_state
     http_server.start()
 
-    def run_piano_loop():
-        bottleneck = InformationBottleneck(output_limit=2)
-        perception = PerceptionSystem()
-        perception.register_perception_module(recorder)
-        # perception.register_perception_module(ChatInputModule())
-        perception.register_perception_module(VisionInputModule(llm, lambda: robot.take_image()))
-
-        while True:
-            perception_inputs = perception.get_all_inputs()
-            if high_prio_inputs := bottleneck.filter_and_compress(perception_inputs):
-                prompt = json.dumps([asdict(ip) for ip in high_prio_inputs], indent=2, ensure_ascii=False)
-                agent.generate_answer(prompt)
-
     try:
-        # run_piano_loop()
         agent.run()
     finally:
         logger.info("stopping...")
         robot.emote_doze()
         robot.release()
-
-
-if __name__ == "__main__":
-    main()
