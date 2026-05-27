@@ -1,7 +1,7 @@
 import time
 from typing import Callable, Optional
 from speech_recognition import AudioSource, Microphone
-from bucky.audio.filter import SpeechDenoiser
+from bucky.audio.filter import EchoCancellation, SpeechDenoiser
 import bucky.config as cfg
 import requests
 import threading
@@ -51,8 +51,12 @@ class HttpAudioSource(AudioSource):
 
 
 class BufferedAudioSourceWrapper(AudioSource):
-    def __init__(self, audio_source_factory: Callable[[], AudioSource], denoiser: Optional[SpeechDenoiser] = None):
+    def __init__(self,
+                 audio_source_factory: Callable[[], AudioSource],
+                 echo_cancellation: Optional[EchoCancellation] = None,
+                 denoiser: Optional[SpeechDenoiser] = None):
         self._source_factory = audio_source_factory
+        self._echo_cancellation = echo_cancellation
         self._denoiser = denoiser
         self._source: Optional[AudioSource] = None
         self._continue = threading.Event()
@@ -62,7 +66,13 @@ class BufferedAudioSourceWrapper(AudioSource):
 
     def _read_proc(self):
         while self._continue.is_set() and self._source is not None:
+            timestamp: float = time.time()
             samples = self._source.stream.read(self.CHUNK)  # type: ignore
+            if self._echo_cancellation is not None:
+                samples = self._echo_cancellation.process_microphone_stream(timestamp=timestamp,
+                                                                            input_samples=samples,
+                                                                            sample_width=self.SAMPLE_WIDTH,
+                                                                            sample_rate=self.SAMPLE_RATE)
             self.stream.put(samples, self._source.SAMPLE_WIDTH, self._source.SAMPLE_RATE)  # type: ignore
 
     def __enter__(self):
@@ -122,4 +132,4 @@ def robot_mic():
 
 
 def local_mic():
-    return Microphone()
+    return Microphone(chunk_size=441)

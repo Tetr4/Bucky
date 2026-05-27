@@ -1,4 +1,5 @@
 import uuid
+import numpy as np
 import requests
 import sounddevice
 import logging
@@ -18,7 +19,7 @@ class HttpAudioSink(object):
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
-    def write(self, data):
+    def write(self, data: np.ndarray[tuple[int], np.dtype[np.int16]]):
         try:
             requests.post(self.url, data=data.tobytes())
         except Exception as ex:

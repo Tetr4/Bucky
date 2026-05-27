@@ -26,6 +26,7 @@ dependencies = [
     "noisereduce>=3.0.3",
     "transformers<4.50.0",
     "demoji>=2.0.0",
+    "aec-audio-processing>=1.0.1",
 ]
 
 [tool.uv.sources]

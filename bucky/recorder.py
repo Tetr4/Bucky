@@ -10,7 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from speech_recognition import Recognizer, Microphone, AudioSource, AudioData, WaitTimeoutError
 from typing import Callable, Generator, Optional
 from bucky.common.gpu_utils import get_free_cuda_device
-from bucky.audio.filter import SpeechDenoiser
+from bucky.audio.filter import EchoCancellation, SpeechDenoiser
 from bucky.audio.source import BufferedAudioSourceWrapper
 from pathlib import Path
 
@@ -105,6 +105,7 @@ class Recorder:
         language: str = "english",
         model: str = "base.en",
         audio_source_factory: Callable[[], AudioSource] = Microphone,
+        echo_cancellation: Optional[EchoCancellation] = None,
         denoiser:  Optional[SpeechDenoiser] = None,
         wav_output_dir: Optional[Path] = None,
         on_start_listening: Callable = lambda: None,
@@ -120,6 +121,7 @@ class Recorder:
         self._language: str = language
         self._model: str = model
         self._source_factory: Callable[[], AudioSource] = audio_source_factory
+        self._echo_cancellation = echo_cancellation
         self._denoiser = denoiser
         self._wav_output_dir: Optional[Path] = wav_output_dir
         self._on_start_listening: Callable = on_start_listening
@@ -164,7 +166,9 @@ class Recorder:
 
         last_wakeup: Optional[Transcription] = None
 
-        with BufferedAudioSourceWrapper(self._source_factory, self._denoiser) as source:
+        with BufferedAudioSourceWrapper(audio_source_factory=self._source_factory,
+                                        echo_cancellation=self._echo_cancellation,
+                                        denoiser=self._denoiser) as source:
             while True:
                 if not self._wait_for_wake_word:
                     if last_wakeup and is_complex_wakeup_phrase(last_wakeup.phrase):

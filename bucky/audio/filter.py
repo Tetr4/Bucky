@@ -1,4 +1,8 @@
 from abc import ABC, abstractmethod
+from collections import deque
+from threading import RLock
+import time
+from aec_audio_processing import AudioProcessor
 from typing import Generic, Optional, Sized, TypeVar
 import numpy as np
 import torch
@@ -125,3 +129,84 @@ class SpeechDenoiserDF(SpeechDenoiser[torch.Tensor]):
         enhanced_chunk: torch.Tensor = denoised_samples.squeeze()[start_idx:end_idx]
         output_buffer: torch.Tensor = (enhanced_chunk * (1 << 15)).to(torch.int16)
         return output_buffer.numpy().tobytes()
+
+
+class EchoCancellation:
+    def __init__(self):
+        self._ap = AudioProcessor(
+            enable_aec=True,    # Echo cancellation
+            enable_ns=True,     # Noise suppression
+            enable_agc=True,    # Automatic gain control
+            enable_vad=False     # Voice activity detection
+        )
+
+        self._sample_buffer_lock = RLock()
+        self._speaker_sample_rate: int = 0
+        self._sample_buffer: deque[tuple[float, bytes]] = deque()
+        self._left_over_samples: bytes = b""
+
+    def process_speaker_stream(self, timestamp: float, output_samples: np.ndarray[tuple[int], np.dtype[np.int16]], sample_width: int, sample_rate: int):
+        print("OUT:", f"{len(output_samples)=}", f"{len(output_samples) / sample_rate} sec",
+              f"{sample_width=}", f"{sample_rate=}")
+
+        chunk_duration: float = 0.02
+        next_chunk_time: float = timestamp  # + 0.18285714285714286
+        chunk_size = int(sample_width * sample_rate * chunk_duration)
+
+        with self._sample_buffer_lock:
+            if self._speaker_sample_rate != sample_rate:
+                self._speaker_sample_rate = sample_rate
+                self._sample_buffer.clear()
+
+            data: bytes = self._left_over_samples + output_samples.tobytes()
+            self._left_over_samples = b""
+
+            for i in range(0, len(data), chunk_size):
+                if i+chunk_size > len(data):
+                    self._left_over_samples = data[i:]  # TODO
+                    break
+
+                chunk_data: bytes = data[i:i+chunk_size]
+                assert len(chunk_data) == chunk_size
+                self._sample_buffer.append((next_chunk_time, chunk_data))
+                next_chunk_time += chunk_duration
+
+            while len(self._sample_buffer) > 512:
+                self._sample_buffer.popleft()
+
+    def process_microphone_stream(self, timestamp: float, input_samples: bytes, sample_width: int, sample_rate: int) -> bytes:
+        # print("IN:", type(input_samples), f"{len(input_samples)=}", f"{sample_width=}", f"{sample_rate=}")
+
+        now: float = timestamp
+
+        self._ap.set_stream_format(
+            sample_rate_in=sample_rate,
+            channel_count_in=1,
+            sample_rate_out=sample_rate,
+            channel_count_out=1
+        )
+
+        speaker_chunk = None
+        feedback_delay: float = 0.167  # TODO
+        t: float = now - feedback_delay
+        with self._sample_buffer_lock:
+            if self._speaker_sample_rate:
+                self._ap.set_reverse_stream_format(sample_rate_in=self._speaker_sample_rate, channel_count_in=1)
+            while self._sample_buffer:
+                chunk_time, chunk_data = self._sample_buffer[0]
+                offset: float = abs(t - chunk_time)
+                if chunk_time < t:
+                    self._sample_buffer.popleft()
+                elif offset <= 0.02:  # TODO use chunk duration
+                    self._ap.set_stream_delay(int(offset * 1000))
+                    speaker_chunk = chunk_data
+                    self._sample_buffer.popleft()
+                    break
+                else:
+                    break
+
+        if speaker_chunk is not None:
+            self._ap.process_reverse_stream(speaker_chunk)
+
+        clean_audio = self._ap.process_stream(input_samples)
+        return clean_audio

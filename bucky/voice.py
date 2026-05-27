@@ -1,6 +1,6 @@
 from pathlib import Path
 import time
-from typing import Callable, Iterator, TYPE_CHECKING
+from typing import Any, Callable, Iterator, TYPE_CHECKING, Optional
 import demoji
 import numpy as np
 import sounddevice
@@ -12,6 +12,7 @@ import hashlib
 import pickle
 import os
 import logging
+from bucky.audio.filter import EchoCancellation
 from bucky.common.gpu_utils import get_free_cuda_device
 from rich.progress import Progress
 
@@ -46,13 +47,15 @@ class Voice:
                  filler_phrases: list[str] = ["hm", "jo", "ähm", "ah", "also", "mal überlegen"],
                  pre_cached_phrases: list[str] = [],
                  chunk_size_in_seconds: float = 1.5,
-                 audio_sink_factory=lambda rate, channels: sounddevice.OutputStream(samplerate=rate,
-                                                                                    channels=channels,
-                                                                                    dtype='int16')) -> None:
+                 echo_cancellation: Optional[EchoCancellation] = None,
+                 audio_sink_factory: Callable = lambda rate, channels: sounddevice.OutputStream(samplerate=rate,
+                                                                                                channels=channels,
+                                                                                                dtype='int16')) -> None:
         self._language = language
-        self._audio_sink_factory = audio_sink_factory
         self._chunk_size_in_seconds = chunk_size_in_seconds
         self._filler_phrases = filler_phrases
+        self._echo_cancellation = echo_cancellation
+        self._audio_sink_factory = audio_sink_factory
         self._filler_sounds_enabled = False
         self._dynamic_speed = 1.0
 
@@ -222,7 +225,9 @@ class Voice:
         return True
 
     def _playback_proc(self):
-        stream = self._audio_sink_factory(22050, 1)
+        sample_rate: int = 22050
+        channels: int = 1
+        stream = self._audio_sink_factory(sample_rate, channels)
         with stream:
             next_timeout: float = 3.0
             filler_phrases_pool: list[str] = []
@@ -231,7 +236,13 @@ class Voice:
                     wave = self._wave_queue.get(timeout=next_timeout if self._filler_phrases else None)
                     try:
                         next_timeout = 3.0
-                        stream.write((np.array(wave) * 32767).astype(np.int16))
+                        samples: np.ndarray[tuple[int], np.dtype[np.int16]] = (np.array(wave) * 32767).astype(np.int16)
+                        if self._echo_cancellation is not None:
+                            self._echo_cancellation.process_speaker_stream(timestamp=time.time(),
+                                                                           output_samples=samples,
+                                                                           sample_width=2,
+                                                                           sample_rate=sample_rate)
+                        stream.write(samples)
                     finally:
                         self._wave_queue.task_done()
                 except queue.Empty:
