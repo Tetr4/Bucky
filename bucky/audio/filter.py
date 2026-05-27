@@ -6,6 +6,7 @@ from aec_audio_processing import AudioProcessor
 from typing import Generic, Optional, Sized, TypeVar
 import numpy as np
 import torch
+import audresample
 
 T = TypeVar('T', bound=Sized)
 
@@ -149,7 +150,17 @@ class EchoCancellation:
         print("OUT:", f"{len(output_samples)=}", f"{len(output_samples) / sample_rate} sec",
               f"{sample_width=}", f"{sample_rate=}")
 
-        chunk_duration: float = 0.02
+        microphone_sample_rate = 44100  # TODO there is a bug in aec_audio_processing: sample rate of reverse_stream and stream must be the same
+        if sample_rate != microphone_sample_rate:
+            output_samples = audresample.resample(
+                output_samples.astype(np.float32) / 32767.0,
+                sample_rate,
+                microphone_sample_rate
+            )
+            output_samples = (np.array(output_samples) * 32767).astype(np.int16)
+            sample_rate = microphone_sample_rate
+
+        chunk_duration: float = 0.01
         next_chunk_time: float = timestamp  # + 0.18285714285714286
         chunk_size = int(sample_width * sample_rate * chunk_duration)
 
@@ -186,18 +197,19 @@ class EchoCancellation:
             channel_count_out=1
         )
 
-        speaker_chunk = None
-        feedback_delay: float = 0.167  # TODO
+        speaker_chunk: Optional[bytes] = None
+        feedback_delay: float = 0.182  # TODO
         t: float = now - feedback_delay
         with self._sample_buffer_lock:
             if self._speaker_sample_rate:
                 self._ap.set_reverse_stream_format(sample_rate_in=self._speaker_sample_rate, channel_count_in=1)
+
             while self._sample_buffer:
                 chunk_time, chunk_data = self._sample_buffer[0]
                 offset: float = abs(t - chunk_time)
                 if chunk_time < t:
                     self._sample_buffer.popleft()
-                elif offset <= 0.02:  # TODO use chunk duration
+                elif offset <= 0.019:  # TODO
                     self._ap.set_stream_delay(int(offset * 1000))
                     speaker_chunk = chunk_data
                     self._sample_buffer.popleft()

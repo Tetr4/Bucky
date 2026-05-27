@@ -38,16 +38,16 @@ def main():
     listener_thread = threading.Thread(target=listen_loop, daemon=True)
     listener_thread.start()
 
-    text: str = "Wer während der Autofahrt über Handy oder Freisprechanlage telefoniert, fährt wie ein angetrunkener Wagenlenker."
-    # text: str = " ".join("""
-    # Wer während der Autofahrt über Handy oder Freisprechanlage telefoniert, fährt wie ein
-    # angetrunkener Wagenlenker. Zu diesem Schluss kommen die Psychologen Frank Drews,
-    # David Strayer und der Toxikologe Dennis Crouch von der Universität Utah in ihrer Studie,
-    # die sie heute in dem Journal Human Factors veröffentlichen. 25 Männer und 15 Frauen im
-    # Alter zwischen 22 und 34 Jahren nahmen an «A Comparison of the Cell Phone Driver and
-    # the Drunk Driver» teil. Das Bundesamt für Luftfahrt finanzierte die Untersuchungen mit
-    # 25000 Dollar, um Rückschlüsse auf die Aufmerksamkeit von Piloten ziehen zu können.
-    # """.split())
+    # text: str = "Wer während der Autofahrt über Handy oder Freisprechanlage telefoniert, fährt wie ein angetrunkener Wagenlenker."
+    text: str = " ".join("""
+    Wer während der Autofahrt über Handy oder Freisprechanlage telefoniert, fährt wie ein
+    angetrunkener Wagenlenker. Zu diesem Schluss kommen die Psychologen Frank Drews,
+    David Strayer und der Toxikologe Dennis Crouch von der Universität Utah in ihrer Studie,
+    die sie heute in dem Journal Human Factors veröffentlichen. 25 Männer und 15 Frauen im
+    Alter zwischen 22 und 34 Jahren nahmen an «A Comparison of the Cell Phone Driver and
+    the Drunk Driver» teil. Das Bundesamt für Luftfahrt finanzierte die Untersuchungen mit
+    25000 Dollar, um Rückschlüsse auf die Aufmerksamkeit von Piloten ziehen zu können.
+    """.split())
 
     print(text)
     voice.speak(text)
